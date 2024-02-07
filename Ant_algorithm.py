@@ -1,47 +1,97 @@
 from Bio import pairwise2
 from Bio import SeqIO
+import os
 import yaml
 from math import modf
 from Bio.Seq import Seq
 from inspyred import swarm
-from inspyred import benchmarks
 from inspyred import ec
 from inspyred.ec import selectors
 from collections import deque
 import numpy as np
-import itertools
 import random
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
+from random import Random
+import inspyred
+import collections
+collections.Iterable = collections.abc.Iterable
+collections.Sequence = collections.abc.Sequence
+import time
+from joblib import Parallel, delayed
+from itertools import combinations
+
+start = time.time()
 
 
 # TODO CUDASW++
 
-def comstum_reads(seq: str, length_reads = 160, coverage = 5, verbose = False) -> list:
-    
-    """The function split the sequence in input in reads.
-    The splitting is done using random numbers, the amount of reds is given by: (len(seq)/length_read)*coverage.
+def custom_reads(seq: str, length_reads=160, coverage=5, verbose=False) -> list:
+    """The function splits the sequence in input into reads.
+    The splitting is done using random numbers, and the number of reads is given by: (len(seq)/length_read)*coverage.
     """
 
-    number_of_reads = int(len(seq)/length_reads) * coverage
-    starting_pos = random.sample(range(0, len(seq)-length_reads+1), number_of_reads)
+    number_of_reads = int(len(seq) / length_reads) * coverage
+    starting_pos = random.sample(range(0, len(seq) - length_reads + 1), number_of_reads)
     reads = []
 
     for num in starting_pos:
-        reads.append(seq[num:num+length_reads])
+        reads.append(seq[num:num + length_reads])
 
-    if verbose == True:
-        y = [0 for i in range(0,len(seq)+1)]
+    if verbose:
+        y = [0 for _ in range(0, len(seq) + 1)]
         for i in starting_pos:
-            for j in range(i, i+length_reads+1):
-                y[j] += 1 
-        plot = sns.set_theme(style="darkgrid")
-        plot = sns.lineplot(y)
-        # plot.sevefig("")
+            for j in range(i, i + length_reads + 1):
+                y[j] += 1
+
+        plt.plot(y)
+        plt.xlabel("Position")
+        plt.ylabel("Coverage")
+        plt.title("Coverage Plot")
+        plt.savefig("C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Ant_colony_assembly")
+
         print(f"There are {y.count(0)} bases that have 0 coverage.")
 
     return reads
+
+def alligner(sequences: tuple) -> int:
+    par = [3, -2, -40, -40]
+    allignment = pairwise2.align.localms(Seq(sequences[0]), Seq(sequences[1]), par[0], par[1], par[2], par[3])[0]
+    return allignment
+
+
+def multithreading(reads, par = [3, -2, -40, -40]):
+    length = len(reads)
+    # initialization of the matrices
+    weigth_matrix = np.zeros((length, length))
+
+    # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
+    # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
+    # pairwise must return a positive score, if there is no one it return None
+    allignment = Parallel(n_jobs=-1)(delayed(alligner)(i) for i in combinations(i,2))
+    print(allignment)
+            
+    start = allignment[3]
+    over = allignment[4] - start
+    # return object [seqA, seqB, score, start(inc), end(ex)]
+
+    if allignment[0][0] == "-":
+        # This means that the first reads in input has a gap at the beginning of the allignment.
+        # Therefore the first reads in input (i) is downstream,
+        # so I add the score in the matrix but in the position (j,i) instead of (i,j) where there is a 0
+        diff = allignment[0].count("-")
+        weigth_matrix[j][i] = allignment[2]*over
+        weigth_matrix[i][j] = float(f"{diff}.{start}1")
+        # to avoid to loosing a 0 is been introduced a 1 digit which will be removed afterwords
+
+    else:
+        # In the opposite case, where the i read is upstream (i,j) has the score, while (j,i) has a 0   
+        diff = allignment[1].count("-")                 #
+        weigth_matrix[i][j] = allignment[2]*over
+        weigth_matrix[j][i] = float(f"{diff}.{start}1")
+
+
+
 
 def eval_allign(reads:list, par = [3, -2, -40, -40]):
     """Funtion that evaulate the alignment
@@ -134,8 +184,7 @@ def matrix_print(matrix:list) -> None:
         print(line[i])
 
     return    
-
-def consensus_sequence(path:list, reads:list, positions:list, length:int, last = False, max_coverage= 12, verbose = False) -> str:
+def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage= 12, verbose = False):
     """Rebluild from the list of reds, the path and the matrix with the scores the allignment.
 
     path:list of tuple with edges --> [(1,3), (3,6), ...]
@@ -150,117 +199,92 @@ def consensus_sequence(path:list, reads:list, positions:list, length:int, last =
         positions: for space reason the matrix is not presented, but is similar to the one in the eval_allign help.
     """
 
-    if last:
+    D = {"A":1, "T":2, "C":3, "G":4}
+    d = {1:"A", 2:"T", 3:"C", 4:"G"}
 
-        D = {"A":1, "T":2, "C":3, "G":4}
-        d = {1:"A", 2:"T", 3:"C", 4:"G"}
-        rec = np.zeros((max_coverage, length))
-        leng = len(rec[0])
-        cum_dif = 0
-        adding = np.zeros((max_coverage, int(length/100)))
+    rec = np.zeros((max_coverage, length))
+    leng = len(rec[0])
+    cum_dif = 0
+    adding = np.zeros((max_coverage, int(length/100)))
 
-        for i,j in path:
-            # Here i,j represent the edge of the graph, to retrive not the score but the alignment
-            # the function needs the opposite position where there are these informations matrix[j][i]
-            # something like 12.22, 12 is the strating base 22 is the ending base of the overlapping, both included.
+    for i,j in path:
+        # Here i,j represent the edge of the graph, to retrive not the score but the alignment
+        # the function needs the opposite position where there are these informations matrix[j][i]
+        # something like 12.22, 12 is the strating base 22 is the ending base of the overlapping, both included.
 
-            num = str(positions[j][i]).split(".")
-            # start = int(num[1][:-1])  # included
-            dif = int(num[0])
+        num = str(positions[j][i]).split(".")
+        # start = int(num[1][:-1])  # included
+        dif = int(num[0])
 
-            if rec[0,0] == 0:
-                
-                for pos in range(0, len(reads[i])):
-                    if rec[0,pos]!=0:
-                        rec = np.append(rec,adding, 1)
-                    rec[0,pos] = D[reads[i][pos]]
-                cum_dif += dif
-                temp = 0
-                for p in range(cum_dif, cum_dif + len(reads[j])):
-                    if rec[1,pos]!=0:
-                        rec = np.append(rec, adding, 1)
-                    rec[1, p] = D[reads[j][temp]]
-                    temp +=1
-
-            else:
-                cum_dif += dif
-                temp = 0
-                for pos in range(cum_dif, cum_dif+len(reads[j])):
-                    if rec[0,pos]!=0:
-                        rec = np.append(rec, adding, 1)
-                    row = 0
-                    while rec[row, pos] >= 1:
-                        row += 1
-                    rec[row, pos] = D[reads[j][temp]]
-                    temp +=1
-
-        if verbose:
-            # TODO here we wants stats
-            matrix_print(rec)
+        if rec[0,0] == 0:
             
-        cons_seq = ""
-        for i in range(0, leng):
-            base = [int(x) for x in rec[:,i] if x > 0]
-            if base == []:
-                return cons_seq
-            ind = []
-            for num in [1,2,3,4]:
-                ind.append(base.count(num))
-            more_frequent = ind.index(max(ind)) + 1
-            # TODO stats
-            cons_seq += d[more_frequent]
+            for pos in range(0, len(reads[i])):
+                if rec[0,pos]!=0:
+                    rec = np.append(rec,adding, 1)
+                rec[0,pos] = D[reads[i][pos]]
+            cum_dif += dif
+            temp = 0
+            for p in range(cum_dif, cum_dif + len(reads[j])):
+                if rec[1,pos]!=0:
+                    rec = np.append(rec, adding, 1)
+                rec[1, p] = D[reads[j][temp]]
+                temp +=1
 
-        return cons_seq
+        else:
+            cum_dif += dif
+            temp = 0
+            for pos in range(cum_dif, cum_dif+len(reads[j])):
+                if rec[0,pos]!=0:
+                    rec = np.append(rec, adding, 1)
+                row = 0
+                while rec[row, pos] >= 1:
+                    row += 1
+                rec[row, pos] = D[reads[j][temp]]
+                temp +=1
 
-    else:
-        # TODO implement because maybe is not necessary the build the seq, maybe only adding numbers
-        tot_seq = []
-
-        for i,j in path:
-
-            num = str(positions[j][i]).split(".")
-            dif = int(num[0])  # included
-            # start = int(num[1][:-1])
+    if verbose:
+        # TODO here we wants stats
+        matrix_print(rec)
         
-            if len(tot_seq) == len(path)-1:
-                tot_seq.append(reads[i][:dif] + reads[j])
-            else:
-                tot_seq.append(reads[i][:dif])
+    cons_seq = ""
+    for i in range(0, leng):
+        base = [int(x) for x in rec[:,i] if x > 0]
+        if base == []:
+            return cons_seq
+        ind = []
+        for num in [1,2,3,4]:
+            ind.append(base.count(num))
+        more_frequent = ind.index(max(ind)) + 1
+        # TODO stats
+        cons_seq += d[more_frequent]
 
-                # The function goes backword so before reconstructing the sequence there is the need to reverse the list
-                #  with the part of the reds to assemble
-        real_seq = ""
-
-        for seq in tot_seq:
-            real_seq += seq
-        
-        return len(real_seq)   
+    return cons_seq
 
 
-# def tuning_parameters(yaml_file = "training.yaml"):
-#     """This function is just to tune the parameter of the function
-#     """
+def consensus_sequence_partial(path:list, positions:list) -> int:
+    """
+    This is called in to evaluate the length of the sequence, so there is no need to build the actual sequence.
+    Therefore is used only the shifting paramiter "dif" to calculate the length.
 
-#     with open(yaml_file, "r") as file:
-#         file = yaml.safe_load(file)
+    path: list of nodes
+    positions: matrix with informations
+    """
+    tot_seq = 0
+    cnt = 0
 
-#     sequences = file["sequence_to_test"].values()
-#     parameters = file["allignment_parameters"].values()
+    for i,j in path:
 
-#     with open(yaml_file, "a") as y_file:
+        num = str(positions[j][i]).split(".")
+        dif = int(num[0])
+    
+        if cnt == len(path) - 1:
+            tot_seq += dif + len(reads[i])
+        else:
+            tot_seq += dif
+        cnt += 1
+    
+    return tot_seq   
 
-#         for name_sequence in sequences:
-#             seq = ""
-#             y_file["scores"] = {}
-#             for param in parameters:
-#                 print(name_sequence[7:-4])
-#                 print(param)
-#                 for seq_record in SeqIO.parse(name_sequence, format="fasta"):
-#                     seq += seq_record.seq.upper()
-#                 print(seq[:80])
-#                 y_file["scores"]
-#                 run algorithm
-#                 file["scores"]
 
 class Assembly_problem():
     """Defines the de novo genome assembly problem.
@@ -286,9 +310,8 @@ class Assembly_problem():
       (default 0.5)
     """
     
-    def __init__(self, reads, approximate_length):
-        self.weights = eval_allign(reads)
-        self.reads = reads
+    def __init__(self, matrix, approximate_length):
+        self.weights = matrix
         self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in itertools.permutations(range(len(self.weights)), 2) if modf(self.weights[i,j])[0] == 0]
         self.bias = 0.5
         self.bounder = ec.DiscreteBounder([i for i in range(len(self.weights))])
@@ -327,7 +350,7 @@ class Assembly_problem():
             candidate.append(next_component)
         return candidate
     
-    def cross_over(path:list, matrix:list)->list:
+    def cross_over(path:list, matrix:list):
         """This function recombine the solution. Takes the path and the score associated to each edge
         iterate over the path and switch two edge.
         """
@@ -348,7 +371,7 @@ class Assembly_problem():
             last = (candidate[-1].element[1], candidate[0].element[0])
             current_path=[(i.element[0],c.element[1]) for i in candidate]
             total += self.weights[last[0]][last[1]]
-            current_sequence = consensus_sequence(current_path, reads=self.reads, positions=self.weights, length=self.length)
+            current_sequence = consensus_sequence_partial(current_path, positions=self.weights)
             length_score = abs((self.length-current_sequence)/self.length)
             s = [5, 3, 1, 0.5, 0.2]
             perc=[0, 0.01, 0.05, 0.08, 0.1, 0.2]
@@ -366,21 +389,13 @@ class Assembly_problem():
 
         return fitness
 
-# from utils.utils_07.exercise_1 import *
-# from utils.utils_07.plot_utils import *
-from random import Random
-import inspyred
-import collections
-collections.Iterable = collections.abc.Iterable
-collections.Sequence = collections.abc.Sequence
-
 seq = ""
-for seq_record in SeqIO.parse("C:\\Users\\filoa\\OneDrive\\Desktop\\Bio AI\\Project_Bio_AI\\Data\\Aspergillus_flavus.fna", format="fasta"):
+for seq_record in SeqIO.parse("C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Ant_colony_assembly\\GCA_014117465.1_ASM1411746v1_genomic.fna", format="fasta"):
     seq += seq_record.seq.upper()
 
-seq = seq[:10000]
+seq = seq[:1000]
 
-reads = comstum_reads(seq, length_reads=3000, coverage=6)
+reads = custom_reads(seq, length_reads=160, coverage=6, verbose=True)
 
 # common parameters
 pop_size = 80
@@ -396,9 +411,12 @@ args = {}
 args["fig_title"] = "ACS"
 
 # run ACS
-problem = Assembly_problem(reads, len(seq))
+weigths = eval_allign(reads)
+partial = time.time()
+print(f"Time for matrix:  {partial - start}")
+
+problem = Assembly_problem(weigths, len(seq))
 ac = inspyred.swarm.ACS(prng, problem.components)
-# ac.observer = [plot_observer]
 ac.terminator = inspyred.ec.terminators.generation_termination
 
 final_pop = ac.evolve(generator=problem.constructor, 
@@ -413,23 +431,13 @@ best_ACS = max(ac.archive)
 
 
 c = [(i.element[0], i.element[1]) for i in best_ACS.candidate]
-d = consensus_sequence(c, reads, length=5000, positions=problem.weights, last=True)
-# print(len(d))
+d = final_consensus(c, reads, length=5000, positions=problem.weights)
 al = pairwise2.align.localms(d, seq, 3,-1,-5,-5)[0]
-# print(al[0])
-# print(al[1])
-# print(al[2])
-
-cont = 0
-for i in range(len(seq)):
-    if al[0][i] == al[1][i]:
-        cont += 1
-perc = cont/len(seq)
 
 ll = []
 ll.append("Thr first line is the reconstructed seq, while the second is the real sequence:\n")
 cnt=0
-for i in range(50,2*len(seq),50):
+for i in range(50,len(al[0]),50):
     ll.append(str(al[0][cnt:i]))
     ll.append("\n")
     ll.append(str(al[1][cnt:i]))
@@ -441,15 +449,20 @@ ll.append("Score of the allignment after the reconstruction:\n")
 ll.append(str(al[2]))
 ll.append("\nThe percentage of macht in the allignment is:")
 ll.append("\n")
-ll.append(str(perc))
 
-import os
+cnt = 0
+for i in range(len(al[0])):
+    if al[0][i] == al[1][i]:
+        cnt += 1
+ll.append(str(cnt/len(seq))) 
 
-path = "C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Ant_colony_assembly\\Aspergillus_2_info.txt"
+path = "C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Ant_colony_assembly\\Aspergillus_info.txt"
 if not os.path.exists(path):
     os.makedirs
 
 new_file = open(path, "w")
-results_to_write = ll
-new_file.writelines(results_to_write)
+new_file.writelines(ll)
 new_file.close()
+
+stop = time.time()
+print(f"Time: {stop - start}")
