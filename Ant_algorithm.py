@@ -54,41 +54,41 @@ def custom_reads(seq: str, length_reads=160, coverage=5, verbose=False) -> list:
 
     return reads
 
-def alligner(sequences: tuple) -> int:
-    par = [3, -2, -40, -40]
-    allignment = pairwise2.align.localms(Seq(sequences[0]), Seq(sequences[1]), par[0], par[1], par[2], par[3])[0]
-    return allignment
+# def alligner(sequences: tuple) -> int:
+#     par = [3, -2, -40, -40]
+#     allignment = pairwise2.align.localms(Seq(sequences[0]), Seq(sequences[1]), par[0], par[1], par[2], par[3])[0]
+#     return allignment
 
 
-def multithreading(reads, par = [3, -2, -40, -40]):
-    length = len(reads)
-    # initialization of the matrices
-    weigth_matrix = np.zeros((length, length))
+# def multithreading(reads, par = [3, -2, -40, -40]):
+#     length = len(reads)
+#     # initialization of the matrices
+#     weigth_matrix = np.zeros((length, length))
 
-    # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
-    # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
-    # pairwise must return a positive score, if there is no one it return None
-    allignment = Parallel(n_jobs=-1)(delayed(alligner)(i) for i in combinations(i,2))
-    print(allignment)
+#     # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
+#     # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
+#     # pairwise must return a positive score, if there is no one it return None
+#     allignment = Parallel(n_jobs=-1)(delayed(alligner)(i) for i in combinations(i,2))
+#     print(allignment)
             
-    start = allignment[3]
-    over = allignment[4] - start
-    # return object [seqA, seqB, score, start(inc), end(ex)]
+#     start = allignment[3]
+#     over = allignment[4] - start
+#     # return object [seqA, seqB, score, start(inc), end(ex)]
 
-    if allignment[0][0] == "-":
-        # This means that the first reads in input has a gap at the beginning of the allignment.
-        # Therefore the first reads in input (i) is downstream,
-        # so I add the score in the matrix but in the position (j,i) instead of (i,j) where there is a 0
-        diff = allignment[0].count("-")
-        weigth_matrix[j][i] = allignment[2]*over
-        weigth_matrix[i][j] = float(f"{diff}.{start}1")
-        # to avoid to loosing a 0 is been introduced a 1 digit which will be removed afterwords
+#     if allignment[0][0] == "-":
+#         # This means that the first reads in input has a gap at the beginning of the allignment.
+#         # Therefore the first reads in input (i) is downstream,
+#         # so I add the score in the matrix but in the position (j,i) instead of (i,j) where there is a 0
+#         diff = allignment[0].count("-")
+#         weigth_matrix[j][i] = allignment[2]*over
+#         weigth_matrix[i][j] = float(f"{diff}.{start}1")
+#         # to avoid to loosing a 0 is been introduced a 1 digit which will be removed afterwords
 
-    else:
-        # In the opposite case, where the i read is upstream (i,j) has the score, while (j,i) has a 0   
-        diff = allignment[1].count("-")                 #
-        weigth_matrix[i][j] = allignment[2]*over
-        weigth_matrix[j][i] = float(f"{diff}.{start}1")
+#     else:
+#         # In the opposite case, where the i read is upstream (i,j) has the score, while (j,i) has a 0   
+#         diff = allignment[1].count("-")                 #
+#         weigth_matrix[i][j] = allignment[2]*over
+#         weigth_matrix[j][i] = float(f"{diff}.{start}1")
 
 
 
