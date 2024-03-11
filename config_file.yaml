@@ -1,0 +1,11 @@
+data_path_file: "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\GCA_014117465.1_ASM1411746v1_genomic.fna"
+custom_reads_leght: 160
+num_of_bases: 2000
+coverage: 6
+population_size: 80
+num_of_maximum_generations: 8
+seed: 12
+evaporation rate: 0.7
+learning_rate: 0.1
+cpus : 6
+directory_to_save: "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Aspergillus_info.txt"
