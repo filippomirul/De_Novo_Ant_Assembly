@@ -1,11 +1,24 @@
+# Path to the fasta file for the input
 data_path_file: "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\GCA_014117465.1_ASM1411746v1_genomic.fna"
+
+# Reads length, needed to produced the reads
 custom_reads_leght: 160
+
+# Subset of the genome to be reconstructed
 num_of_bases: 2000
+# Coverege of the sequencing
 coverage: 6
+# Number of ants initialized at each iteration 
 population_size: 80
+# Numbers of generations (iterations)
 num_of_maximum_generations: 8
+# Seed
 seed: 12
+# How much the pheromone evaporates
 evaporation rate: 0.7
+# Learning rates
 learning_rate: 0.1
+# Numbers of cores to be used
 cpus : 6
+# Output file directories
 directory_to_save: "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Aspergillus_info.txt"
