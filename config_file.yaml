@@ -1,11 +1,9 @@
 # Path to the fasta file for the input
 data_path_file: "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\GCA_014117465.1_ASM1411746v1_genomic.fna"
-
 # Reads length, needed to produced the reads
-custom_reads_leght: 160
-
+custom_reads_lenght: 160
 # Subset of the genome to be reconstructed
-num_of_bases: 2000
+num_of_bases: 10000
 # Coverege of the sequencing
 coverage: 6
 # Number of ants initialized at each iteration 
@@ -18,6 +16,8 @@ seed: 12
 evaporation rate: 0.7
 # Learning rates
 learning_rate: 0.1
+# Variable for displaying the plots
+verbose: False
 # Numbers of cores to be used
 cpus : 6
 # Output file directories

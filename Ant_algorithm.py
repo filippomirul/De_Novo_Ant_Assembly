@@ -1,5 +1,6 @@
-from Bio import pairwise2
 from Bio import SeqIO
+from Bio import pairwise2   # Biopython version <= 1.79
+import datetime
 import os
 import yaml
 from math import modf
@@ -7,10 +8,8 @@ from Bio.Seq import Seq
 from inspyred import swarm
 from inspyred import ec
 from inspyred.ec import selectors
-from collections import deque
 import numpy as np
 import random
-import pandas as pd
 import matplotlib.pyplot as plt
 from random import Random
 import inspyred
@@ -18,17 +17,18 @@ import collections
 collections.Iterable = collections.abc.Iterable
 collections.Sequence = collections.abc.Sequence
 import time
-from itertools import combinations, permutations
+from tqdm import tqdm
+from itertools import permutations
 # from joblib import Parallel, delayed
 
-# TODO replaice pairwise and try parallelization
+# TODO replaice pairwise and try parallelization, parser
 
-def custom_reads(seq: str, length_reads=160, coverage=5, verbose=False) -> list:
+def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
     """The function splits the sequence in input into reads.
     The splitting is done using random numbers, and the number of reads is given by: (len(seq)/length_read)*coverage.
     """
 
-    number_of_reads = int(len(seq) / length_reads) * coverage
+    number_of_reads = int(len(seq)/length_reads) * coverage
     starting_pos = random.sample(range(0, len(seq) - length_reads + 1), number_of_reads)
     reads = []
 
@@ -45,13 +45,13 @@ def custom_reads(seq: str, length_reads=160, coverage=5, verbose=False) -> list:
         plt.xlabel("Position")
         plt.ylabel("Coverage")
         plt.title("Coverage Plot")
-        plt.savefig("C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Ant_colony_assembly")
+        plt.savefig("C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Assembler")
 
         print(f"There are {y.count(0)} bases that have 0 coverage.")
 
     return reads
 
-def eval_allign(reads:list, par = [3, -2, -40, -40]):
+def eval_allign(reads:list, par:list = [3, -2, -40, -40]) -> list:
     """Funtion that evaulate the alignment
 
     reads: list of DNA sequences, each of the read is a string
@@ -91,9 +91,9 @@ def eval_allign(reads:list, par = [3, -2, -40, -40]):
 
     # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
     # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
-    visited = deque([j for j in range(length)])
+    visited = collections.deque([j for j in range(length)])
     
-    for i in range(length):
+    for i in tqdm(range(length)):
 
         for j in visited:
 
@@ -143,7 +143,7 @@ def matrix_print(matrix:list) -> None:
 
     return 
    
-def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage= 16, verbose = False) ->str:
+def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16, verbose:bool = False) ->str:
     """Rebluild from the list of reds, the path and the matrix with the scores the allignment.
 
     path:list of tuple with edges --> [(1,3), (3,6), ...]
@@ -166,7 +166,7 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
     cum_dif = 0
     adding = np.zeros((max_coverage, int(length/100)))
 
-    for i,j in path:
+    for i,j in tqdm(path):
         # Here i,j represent the edge of the graph, to retrive not the score but the alignment
         # the function needs the opposite position where there are these informations matrix[j][i]
         # something like 12.22, 12 is the strating base 22 is the ending base of the overlapping, both included.
@@ -219,7 +219,7 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
 
     return cons_seq
 
-def consensus_sequence_partial(path:list, positions:list) -> int:
+def consensus_sequence_partial(path:list, positions:list , reads_len:int) -> int:
     """
     This is called in to evaluate the length of the sequence, so there is no need to build the actual sequence.
     Therefore is used only the shifting paramiter "dif" to calculate the length.
@@ -236,7 +236,7 @@ def consensus_sequence_partial(path:list, positions:list) -> int:
         dif = int(num[0])
     
         if cnt == len(path) - 1:
-            tot_seq += dif + len(reads[i])
+            tot_seq += dif + reads_len
         else:
             tot_seq += dif
         cnt += 1
@@ -244,7 +244,8 @@ def consensus_sequence_partial(path:list, positions:list) -> int:
     return tot_seq   
 
 class Assembly_problem():
-    """Defines the de novo genome assembly problem.
+    """
+    Defines the de novo genome assembly problem.
     
     This class based on the Traveling Salesman problem defines the problem
     of assembling a new genome for which no reference is available (de novo assembly):
@@ -267,7 +268,7 @@ class Assembly_problem():
       (default 0.5)
     """
     
-    def __init__(self, matrix, approximate_length):
+    def __init__(self, matrix:list, approximate_length:int, reads_length:int):
         self.weights = matrix
         self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if modf(self.weights[i,j])[0] == 0]
         self.bias = 0.5
@@ -275,6 +276,7 @@ class Assembly_problem():
         self.best_path = None
         self.maximize = True
         self.length = approximate_length
+        self.reads_len = reads_length
     
     def constructor(self, random, args):
         """Return a candidate solution for an ant colony optimization."""
@@ -322,7 +324,7 @@ class Assembly_problem():
             return None
 
     
-    def evaluator(self, candidates, args):
+    def evaluator(self, candidates:list, args):
         """Return the fitness values for the given candidates."""
         fitness = []
         for candidate in candidates:
@@ -332,7 +334,7 @@ class Assembly_problem():
             last = (candidate[-1].element[1], candidate[0].element[0])
             current_path=[(i.element[0], i.element[1]) for i in candidate] # al posto della seconda i c'era una c
             total += self.weights[last[0]][last[1]]
-            current_sequence = consensus_sequence_partial(current_path, positions=self.weights)
+            current_sequence = consensus_sequence_partial(current_path, positions=self.weights, reads_len = self.reads_len)
             length_score = abs((self.length-current_sequence)/self.length)
             s = [5, 3, 1, 0.5, 0.2]
             perc=[0, 0.01, 0.05, 0.08, 0.1, 0.2]
@@ -352,6 +354,17 @@ class Assembly_problem():
 
 def main(config_file:str):
 
+    print("""
+             _       __    _   __________ 
+            / \     |   \ | | |___   ____|
+           / _ \    | |\ \| |     | |     
+          / /_\ \   | | \   |     | |       
+         /  ___  \  | |  \  |     | |     ___|^-^| ___|^-^|   
+        /_/     \_\ |_|   \_|     |_|     /\ /\    /\ /\ 
+
+    Author: Filippo A. Mirolo, 2024
+    """)
+
     # Getting Parameters:
     with open(config_file, "r") as file:
         file = yaml.safe_load(file)
@@ -359,31 +372,36 @@ def main(config_file:str):
         path_in = file["data_path_file"]
         path_out = file["directory_to_save"]
         coverage = file["coverage"]
-        lenght_reads = ["custom_reads_leagth"]
+        lenght_reads = file["custom_reads_lenght"]
         num_bases = file["num_of_bases"]
         pop_size = file["population_size"]
-        max_generations = file["num_of_max_generations"]
+        max_generations = file["num_of_maximum_generations"]
         seed = file["seed"]
         evaporation_rate = file["evaporation rate"]
         learning_rate = file["learning_rate"]
         cpus = file["cpus"]
+        verbose = file["verbose"]
 
-        file.close
+
 
     # Starting time
+    now = datetime.datetime.now()
     start = time.time()
 
     #Extracting the sequence from the fasta and selecting the lenght:
     seq = ""
+    len_seq = 0
     for seq_record in SeqIO.parse(path_in, format="fasta"):
         seq += seq_record.seq.upper()
+        len_seq += len(seq_record)
+        if len_seq > num_bases:
+            continue
     seq = seq[:num_bases]
 
     # Producing the reads:
-    reads = custom_reads(seq, length_reads = lenght_reads, coverage = coverage, verbose=True)
-    
+    reads = custom_reads(seq, length_reads = lenght_reads, coverage = coverage, verbose=verbose)
+    print(f"[{now}]: Number of reads: {len(reads)}")
     prng = Random(seed)
-    display = True
 
     args = {}
     args["fig_title"] = "ACS"
@@ -393,22 +411,30 @@ def main(config_file:str):
 
     # Partial for the matrix:
     partial = time.time()
-    print(f"Time for matrix:  {partial - start}")
+    print(f"[{now}]: Time for matrix:  {partial - start}")
 
     # Problem and ACS:
-    problem = Assembly_problem(weigths, len(seq))
+    problem = Assembly_problem(matrix = weigths, approximate_length = len(seq), reads_length = lenght_reads)
     ac = inspyred.swarm.ACS(prng, problem.components)
     ac.terminator = inspyred.ec.terminators.generation_termination
 
-    final_pop = ac.evolve(generator=problem.constructor, 
-                        evaluator=problem.evaluator, 
-                        bounder=problem.bounder,
-                        maximize=problem.maximize,
+    if verbose:
+        display = True
+        ac.observer = inspyred.ec.observers.stats_observer
+    else:
+        display = False
+
+    final_pop = ac.evolve(generator = problem.constructor,
+                        evaluator = inspyred.ec.evaluators.parallel_evaluation_mp, 
+                        mp_evaluator = problem.evaluator, 
+                        bounder = problem.bounder,
+                        maximize = problem.maximize,
                         mp_nprocs = cpus,
-                        pop_size=pop_size,
-                        max_generations=max_generations,
-                        evaporation_rate=evaporation_rate,
-                        learning_rate=learning_rate,**args)
+                        pop_size = pop_size,
+                        max_generations = max_generations,
+                        evaporation_rate = evaporation_rate,
+                        learning_rate = learning_rate,
+                        **args)
     best_ACS = max(ac.archive)
 
     # Final results and final consensus sequence
@@ -447,9 +473,8 @@ def main(config_file:str):
     new_file.close()
 
     stop = time.time()
-    print(f"Time: {stop - start}")
+    print(f"[{now}] Time: {stop - start}")
 
 ################################################
-
-if __name__ == "main":
-    main(config_file = "./config_file.yaml")
+#path = path + "/config_file.yaml"
+#main(config_file = path)
