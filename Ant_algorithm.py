@@ -1,27 +1,36 @@
 from Bio import SeqIO
 from Bio import pairwise2   # Biopython version <= 1.79
 import datetime
+import argparse
+import textwrap
 import os
 import yaml
-from math import modf
 from Bio.Seq import Seq
-from inspyred import swarm
-from inspyred import ec
-from inspyred.ec import selectors
 import numpy as np
 import random
 import matplotlib.pyplot as plt
 from random import Random
-import inspyred
-import collections
-collections.Iterable = collections.abc.Iterable
-collections.Sequence = collections.abc.Sequence
 import time
 from tqdm import tqdm
 from itertools import permutations
-# from joblib import Parallel, delayed
+import collections
+from numba import jit
 
-# TODO replaice pairwise and try parallelization, parser
+# from joblib import Parallel, delayed
+# TODO try parallelization, parser
+
+
+parser = argparse.ArgumentParser(
+    formatter_class = argparse.RawDescriptionHelpFormatter,
+    description = textwrap.dedent("""
+
+
+    """))
+
+parser.add_argument("-i", "--configuration_file", type = str, help = "input directory to yaml file", required=True)
+
+args = parser.parse_args()
+
 
 def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
     """The function splits the sequence in input into reads.
@@ -51,7 +60,108 @@ def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = F
 
     return reads
 
-def eval_allign(reads:list, par:list = [3, -2, -40, -40]) -> list:
+@jit(nopython = True)
+def np_score(align_list: np.ndarray, zeros = True)->int:
+    """This function is a replacement for the np function np.count_nonzero(), since inside the np_eval_function was needed to count the number of zeros (=matches).
+    However this function raise an error when run with the numba decorator.
+    """
+    length = len(align_list)
+    cnt = 0
+
+    for i in align_list:
+        if i == 0:
+            cnt += 1
+
+    if zeros:
+        return cnt
+    else:
+        return length-cnt
+
+@jit(nopython=True)
+def np_align_func(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mismatch:int = -2):
+    """This function is a replacement for the align function pirwise2.align.localms of the Bio library. This substitution has the aim of tackling the computational time of the
+    eval_alignment function. In order to decrease the time, there was the need to create a compilable function with numba, which was also capable of being parallelised.
+    As you can clearly see the function takes in input only the match and mismatch, because in this usage the gap introduction is useless.
+
+    seq_one, seq_two = input sequences already trasformed in byte
+    match, mismatch = integer value for the alignment
+
+    Note: the mismatch should be negative
+    """
+
+    # Initialization of output, and since the the func return only one vaue for each the check will be if the saved value is greater or not
+    score = 0
+    diff = 0
+    switch = False
+
+    # This is neceesary since knowing which one in the longest is also needed. seq_one is now scurely the longest
+    if seq_one.shape[0] >= seq_two.shape[0]:
+        max_lenght_seq = seq_one.shape[0]
+        min_length_seq = seq_two.shape[0]
+
+    else:
+        switch = True
+        max_lenght_seq = seq_two.shape[0]
+        min_length_seq = seq_two[0]
+        seq_one, seq_two = seq_two, seq_one
+    
+    # Number of iterations
+    num_iteration_int = (max_lenght_seq + min_length_seq - 1) // 2
+    num_iteration = (max_lenght_seq + min_length_seq - 1) / 2
+    alone = False
+
+    if num_iteration > num_iteration_int:
+        alone = True
+
+    for i in range(num_iteration_int):
+        if i < min_length_seq:
+
+            align_forw = seq_one[:(i+1)] - seq_two[-(i+1):]
+            align_back = seq_two[:(i+1)] - seq_one[-(i+1):]
+
+            cnt = 0
+            for j in align_forw, align_back:
+                part_score = np_score(j)*match + np_score(j, zeros=False)*mismatch
+
+                if part_score > score:
+                    score = part_score
+                    if cnt > 0:
+                        diff = max_lenght_seq -i -1
+                    else:
+                        diff = -(min_length_seq -i -1)
+                cnt += 1
+        
+        if i >= min_length_seq:
+            align_forw = seq_one[i-min_length_seq+1:(i+1)] - seq_two[-(i+1):]
+            align_back = seq_one[-(i+1):-(i-min_length_seq+1)] - seq_two[:(i+1)]
+
+            cnt = 0
+            for j in align_forw, align_back:
+                part_score = np_score(j)*match + np_score(j, zeros=False)*mismatch
+
+                
+                if part_score > score:
+                    score = part_score
+                    if cnt > 0:
+                        diff = max_lenght_seq -i -1
+                    else:
+                        diff = -(min_length_seq -i -1)
+                cnt += 1 
+
+        if i == (num_iteration_int-1) and alone:
+            i += 1
+
+            align_forw = seq_one[i-min_length_seq+1:(i+1)] - seq_two[-(i+1):]
+            part_score = np_score(j)*match + np_score(j, zeros=False)*mismatch
+
+            if part_score > score:
+                score = part_score
+                diff = max_lenght_seq -i -1
+
+
+    return score, diff, switch
+
+def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     """Funtion that evaulate the alignment
 
     reads: list of DNA sequences, each of the read is a string
@@ -102,323 +212,85 @@ def eval_allign(reads:list, par:list = [3, -2, -40, -40]) -> list:
                 continue
             else:
                 # pairwise must return a positive score, if there is no one it return None
-                allignment = pairwise2.align.localms(Seq(reads[i]), Seq(reads[j]), par[0], par[1], par[2], par[3])
-                if len(allignment) == 0:
-                    continue
-                else:
-                    allignment= allignment[0]
-                      
-                start = allignment[3]
-                over = allignment[4] - start
-                # return object [seqA, seqB, score, start(inc), end(ex)]
+                reads_1 = np.array([ord(c) for c in reads[i]])
+                reads_2 = np.array([ord(c) for c in reads[j]])
+                alignment = np_align_func(reads_1, reads_2, match = par[0], mismatch = par[1])
 
-                if allignment[0][0] == "-":
-                    # This means that the first reads in input has a gap at the beginning of the allignment.
-                    # Therefore the first reads in input (i) is downstream,
-                    # so I add the score in the matrix but in the position (j,i) instead of (i,j) where there is a 0
-                    diff = allignment[0].count("-")
-                    weigth_matrix[j][i] = allignment[2]*over
-                    weigth_matrix[i][j] = float(f"{diff}.{start}1")
-                    # to avoid to loosing a 0 is been introduced a 1 digit which will be removed afterwords
+                if alignment[2]:
+                    if alignment[1] > 0:
+                        weigth_matrix[j, i] = alignment[0]
+                        weigth_matrix[i, j] = float(f"{0}.{abs(alignment[1])}")
+                    
+                    else:
+                        weigth_matrix[i, j] = alignment[0]
+                        weigth_matrix[j, i] = float(f"{0}.{abs(alignment[1])}")
 
                 else:
-                    # In the opposite case, where the i read is upstream (i,j) has the score, while (j,i) has a 0   
-                    diff = allignment[1].count("-")                 #
-                    weigth_matrix[i][j] = allignment[2]*over
-                    weigth_matrix[j][i] = float(f"{diff}.{start}1")
+                    if alignment[1] > 0:
+                        weigth_matrix[j, i] = alignment[0]
+                        weigth_matrix[i, j] = float(f"{0}.{abs(alignment[1])}")
+                    
+                    else:
+                        weigth_matrix[i, j] = alignment[0]
+                        weigth_matrix[j, i] = float(f"{0}.{abs(alignment[1])}")
 
                     
         visited.popleft()
     print(f"Done matrix {len(weigth_matrix)}x{len(weigth_matrix)}")
     return weigth_matrix
 
-def matrix_print(matrix:list) -> None:
-    traslator = d = {1:"A", 2:"T", 3:"C", 4:"G", 0:"-"}
-    line = []
-    for i in range(len(matrix)):
-        line.append("")
-        for j in range(len(matrix[0])):
-            line[i] += traslator[matrix[i][j]]
-        print(line[i])
 
-    return 
-   
-def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16, verbose:bool = False) ->str:
-    """Rebluild from the list of reds, the path and the matrix with the scores the allignment.
-
-    path:list of tuple with edges --> [(1,3), (3,6), ...]
-    reads: list of the reads ---> ["ATCGA", "AGGCTG", ...] 
-    positions: is the weigth matrix, but will be considered only the number linked with the base overlapping
-
-    output: a string with the sequece reconstructed    
-
-    Ex
-        path = [(6,5), (5,9), (9,11), (11,7), (7,4), (4,1), (1,3)]
-        reads = ['RAGIL', 'LISTI', 'LIFRA', 'STICH', 'GILIS', 'ERCAL', 'SUPER', 'FRAGI', 'ILIST', 'RCALI', 'PERCA', 'ALIFR']
-        positions: for space reason the matrix is not presented, but is similar to the one in the eval_allign help.
-    """
-
-    D = {"A":1, "T":2, "C":3, "G":4}
-    d = {1:"A", 2:"T", 3:"C", 4:"G"}
-
-    rec = np.zeros((max_coverage, length))
-    leng = len(rec[0])
-    cum_dif = 0
-    adding = np.zeros((max_coverage, int(length/100)))
-
-    for i,j in tqdm(path):
-        # Here i,j represent the edge of the graph, to retrive not the score but the alignment
-        # the function needs the opposite position where there are these informations matrix[j][i]
-        # something like 12.22, 12 is the strating base 22 is the ending base of the overlapping, both included.
-
-        num = str(positions[j][i]).split(".")
-        # start = int(num[1][:-1])  # included
-        dif = int(num[0])
-
-        if rec[0,0] == 0:
-            
-            for pos in range(0, len(reads[i])):
-                if rec[0,pos]!=0:
-                    rec = np.append(rec,adding, 1)
-                rec[0,pos] = D[reads[i][pos]]
-            cum_dif += dif
-            temp = 0
-            for p in range(cum_dif, cum_dif + len(reads[j])):
-                if rec[1,pos]!=0:
-                    rec = np.append(rec, adding, 1)
-                rec[1, p] = D[reads[j][temp]]
-                temp +=1
-
-        else:
-            cum_dif += dif
-            temp = 0
-            for pos in range(cum_dif, cum_dif+len(reads[j])):
-                if rec[0,pos]!=0:
-                    rec = np.append(rec, adding, 1)
-                row = 0
-                while rec[row, pos] >= 1:
-                    row += 1
-                rec[row, pos] = D[reads[j][temp]]
-                temp +=1
-
-    if verbose:
-        # TODO here we wants stats
-        matrix_print(rec)
+    
+def __set_up__(time:time) -> tuple:
         
-    cons_seq = ""
-    for i in range(0, leng):
-        base = [int(x) for x in rec[:,i] if x > 0]
-        if base == []:
-            return cons_seq
-        ind = []
-        for num in [1,2,3,4]:
-            ind.append(base.count(num))
-        more_frequent = ind.index(max(ind)) + 1
-        # TODO stats
-        cons_seq += d[more_frequent]
 
-    return cons_seq
+    #Extracting the sequence from the fasta and selecting the lenght:
+    seq = ""
+    len_seq = 0
+    for seq_record in SeqIO.parse(PATH_IN, format="fasta"):
+        seq += seq_record.seq.upper()
+        len_seq += len(seq_record)
+        if len_seq > NUM_BASE:
+            continue
+    seq = seq[:NUM_BASE]
 
-def consensus_sequence_partial(path:list, positions:list , reads_len:int) -> int:
-    """
-    This is called in to evaluate the length of the sequence, so there is no need to build the actual sequence.
-    Therefore is used only the shifting paramiter "dif" to calculate the length.
+    # Producing the reads:
+    reads = custom_reads(seq, length_reads = LENGHT_READS, coverage = COVERAGE, verbose=VERBOSE)
+    print(f"[{time}]: Number of reads: {len(reads)}")
 
-    path: list of nodes
-    positions: matrix with informations
-    """
-    tot_seq = 0
-    cnt = 0
+    # Constructing the matrix:
+    weigths = eval_allign(reads)
 
-    for i,j in path:
-
-        num = str(positions[j][i]).split(".")
-        dif = int(num[0])
-    
-        if cnt == len(path) - 1:
-            tot_seq += dif + reads_len
-        else:
-            tot_seq += dif
-        cnt += 1
-    
-    return tot_seq   
-
-class Assembly_problem():
-    """
-    Defines the de novo genome assembly problem.
-    
-    This class based on the Traveling Salesman problem defines the problem
-    of assembling a new genome for which no reference is available (de novo assembly):
-    given a set of genomic reads and their pairwise overlap score, find the
-    path generating the longest consensus sequence. This problem assumes that 
-    the ``weights`` parameter is an *n*-by-*n* matrix of pairwise 
-    overlap among *n* reads. This problem is treated as a 
-    maximization problem, socfitness values are determined to be the 
-    proportional to the sum of the overlaps between each couple of reads
-    (the weight of the edge) and the length of the final assembled sequence.
-    
-    Public Attributes:c
-    
-    - *weights* -- the two-dimensional list of pairwise overlap 
-    - *components* -- the set of ``TrailComponent`` objects constructed
-      from the ``weights`` attribute, where the element is the ((source,
-      destination), weight)
-    - *bias* -- the bias in selecting the component of maximum desirability
-      when constructing a candidate solution for ant colony optimization 
-      (default 0.5)
-    """
-    
-    def __init__(self, matrix:list, approximate_length:int, reads_length:int):
-        self.weights = matrix
-        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if modf(self.weights[i,j])[0] == 0]
-        self.bias = 0.5
-        self.bounder = ec.DiscreteBounder([i for i in range(len(self.weights))])
-        self.best_path = None
-        self.maximize = True
-        self.length = approximate_length
-        self.reads_len = reads_length
-    
-    def constructor(self, random, args):
-        """Return a candidate solution for an ant colony optimization."""
-        self._use_ants = True
-        candidate = []
-        feasible_components = [1]   #Fake initialization to allow while loop to start
-        
-        # We need to visit all the nodes that CAN be visited, the graph is directed and not complete, meaning we can have no more nodes to visit without visiting all the
-        # nodes in the graph, thus, our termination condition is not visitin all the nodes but not having anymore feasible components
-        while len(feasible_components) > 0:
-            # At the start of the visit, all the components are feasible
-            if len(candidate) == 0:
-                feasible_components = self.components
-            elif len(candidate) == len(self.weights) - 1: # All the nodes have been visited
-                return candidate
-            else:
-                # Update feasible components and set of already visited nodes considering the node visited in the last iteration
-                last = candidate[-1]
-                already_visited = [c.element[0] for c in candidate]
-                already_visited.extend([c.element[1] for c in candidate])
-                already_visited = set(already_visited)
-                feasible_components = [c for c in self.components if c.element[0] == last.element[1] and c.element[1] not in already_visited]
-            if len(feasible_components) == 0:
-                return candidate
-            # Choose a feasible component
-            if random.random() <= self.bias:
-                next_component = max(feasible_components)
-            else:
-                next_component = selectors.fitness_proportionate_selection(random, feasible_components, {'num_selected': 1})[0]
-            candidate.append(next_component)
-        return candidate
-    
-    def cross_over(path:list, matrix:list):
-        """This function recombine the solution, is a sort of crossing-over. Takes the path and the score associated to each edge
-        iterate over the path and switch two edge.
-        """
-        imaginary_string = range(len(path))
-
-        min_1 = path.index(min([c.value for c in path]))
-        min_2 = path.index(min([c.value for c in path if (c.element[0] == min_1[0]) and (c.element[1] == min_1[1])]))
-        if min_2 == None:
-            return None
-        else:
-            # make cross over between those two
-            return None
-
-    
-    def evaluator(self, candidates:list, args):
-        """Return the fitness values for the given candidates."""
-        fitness = []
-        for candidate in candidates:
-            total = 0
-            for c in candidate:
-                total += self.weights[c.element[0]][c.element[1]]
-            last = (candidate[-1].element[1], candidate[0].element[0])
-            current_path=[(i.element[0], i.element[1]) for i in candidate] # al posto della seconda i c'era una c
-            total += self.weights[last[0]][last[1]]
-            current_sequence = consensus_sequence_partial(current_path, positions=self.weights, reads_len = self.reads_len)
-            length_score = abs((self.length-current_sequence)/self.length)
-            s = [5, 3, 1, 0.5, 0.2]
-            perc=[0, 0.01, 0.05, 0.08, 0.1, 0.2]
-            l_score = 0.1
-            for i in range(len(perc)-1):
-                if length_score >= perc[i] and length_score < perc[i+1]:
-                    # print(perc.index(i))
-                    l_score = s[perc.index(perc[i])]
-
-            if self.best_path == None or len(current_path) > len(self.best_path):
-                self.best_path = current_path
-            
-            score = total*l_score
-            fitness.append(score)
-
-        return fitness
-
-def main(config_file:str):
-
-    print("""
-             _       __    _   __________ 
-            / \     |   \ | | |___   ____|
-           / _ \    | |\ \| |     | |     
-          / /_\ \   | | \   |     | |       
-         /  ___  \  | |  \  |     | |     ___|^-^| ___|^-^|   
-        /_/     \_\ |_|   \_|     |_|     /\ /\    /\ /\ 
-
-    Author: Filippo A. Mirolo, 2024
-    """)
-
-    # Getting Parameters:
-    with open(config_file, "r") as file:
-        file = yaml.safe_load(file)
-
-        path_in = file["data_path_file"]
-        path_out = file["directory_to_save"]
-        coverage = file["coverage"]
-        lenght_reads = file["custom_reads_lenght"]
-        num_bases = file["num_of_bases"]
-        pop_size = file["population_size"]
-        max_generations = file["num_of_maximum_generations"]
-        seed = file["seed"]
-        evaporation_rate = file["evaporation rate"]
-        learning_rate = file["learning_rate"]
-        cpus = file["cpus"]
-        verbose = file["verbose"]
+    problem = Assembly_problem(matrix = weigths, approximate_length = len(seq), reads_length = LENGHT_READS)
 
 
+    return (problem, reads, seq)
+
+
+def main():
 
     # Starting time
     now = datetime.datetime.now()
     start = time.time()
 
-    #Extracting the sequence from the fasta and selecting the lenght:
-    seq = ""
-    len_seq = 0
-    for seq_record in SeqIO.parse(path_in, format="fasta"):
-        seq += seq_record.seq.upper()
-        len_seq += len(seq_record)
-        if len_seq > num_bases:
-            continue
-    seq = seq[:num_bases]
-
-    # Producing the reads:
-    reads = custom_reads(seq, length_reads = lenght_reads, coverage = coverage, verbose=verbose)
-    print(f"[{now}]: Number of reads: {len(reads)}")
-    prng = Random(seed)
-
-    args = {}
-    args["fig_title"] = "ACS"
-
-    # Constructing the matrix:
-    weigths = eval_allign(reads)
+    problem , reads, seq = __set_up__(time = now)
 
     # Partial for the matrix:
     partial = time.time()
-    print(f"[{now}]: Time for matrix:  {partial - start}")
+    print(f"[{time}]: Time for matrix:  {partial - start}")
+    
+    args = {}
+    args["fig_title"] = "ACS"
+
+    prng = Random(SEED)
+    args = {}
+    args["fig_title"] = "ACS"
 
     # Problem and ACS:
-    problem = Assembly_problem(matrix = weigths, approximate_length = len(seq), reads_length = lenght_reads)
     ac = inspyred.swarm.ACS(prng, problem.components)
     ac.terminator = inspyred.ec.terminators.generation_termination
 
-    if verbose:
+    if VERBOSE:
         display = True
         ac.observer = inspyred.ec.observers.stats_observer
     else:
@@ -429,22 +301,22 @@ def main(config_file:str):
                         mp_evaluator = problem.evaluator, 
                         bounder = problem.bounder,
                         maximize = problem.maximize,
-                        mp_nprocs = cpus,
-                        pop_size = pop_size,
-                        max_generations = max_generations,
-                        evaporation_rate = evaporation_rate,
-                        learning_rate = learning_rate,
+                        mp_nprocs = CPUS,
+                        pop_size = POP_SIZE,
+                        max_generations = MAX_GENERATIONS,
+                        evaporation_rate = EVAPORATION_RATE,
+                        learning_rate = LEARNING_RATE,
                         **args)
     best_ACS = max(ac.archive)
 
     # Final results and final consensus sequence
     c = [(i.element[0], i.element[1]) for i in best_ACS.candidate]
-    d = final_consensus(c, reads, length=5000, positions=problem.weights)
+    d = final_consensus(c, reads, length = 5000, positions = problem.weights)
     al = pairwise2.align.localms(d, seq, 3,-1,-5,-5)[0]
 
     # Writing the results:
     ll = []
-    ll.append("Thr first line is the reconstructed seq, while the second is the real sequence:\n")
+    ll.append("The first line is the reconstructed seq, while the second is the real sequence:\n")
     cnt=0
     for i in range(50,len(al[0]),50):
         ll.append(str(al[0][cnt:i]))
@@ -465,10 +337,10 @@ def main(config_file:str):
             cnt += 1
     ll.append(str(cnt/len(seq))) 
 
-    if not os.path.exists(path_out):
+    if not os.path.exists(PATH_OUT):
         os.makedirs
 
-    new_file = open(path_out, "w")
+    new_file = open(PATH_OUT, "w")
     new_file.writelines(ll)
     new_file.close()
 
@@ -476,5 +348,38 @@ def main(config_file:str):
     print(f"[{now}] Time: {stop - start}")
 
 ################################################
-#path = path + "/config_file.yaml"
-#main(config_file = path)
+
+# ./config_file.yaml
+
+with open(args.configuration_file, "r") as file:
+
+    file = yaml.safe_load(file)
+
+    PATH_IN = file["data_path_file"]
+    PATH_OUT = file["directory_to_save"]
+    COVERAGE = file["coverage"]
+    LENGHT_READS = file["custom_reads_lenght"]
+    NUM_BASE = file["num_of_bases"]
+    POP_SIZE = file["population_size"]
+    MAX_GENERATIONS = file["num_of_maximum_generations"]
+    SEED = file["seed"]
+    EVAPORATION_RATE = file["evaporation rate"]
+    LEARNING_RATE = file["learning_rate"]
+    CPUS = file["cpus"]
+    VERBOSE = file["verbose"]
+
+print("""
+         _       __    _   __________ 
+        / \     |   \ | | |___   ____|
+       / _ \    | |\ \| |     | |     
+      / /_\ \   | | \   |     | |       
+     /  ___  \  | |  \  |     | |     ___|^-^| ___|^-^|   
+    /_/     \_\ |_|   \_|     |_|     /\ /\    /\ /\ 
+
+Author: Filippo A. Mirolo, 2024
+""")
+
+main()
+
+# if __name__== "main":
+#     main()
