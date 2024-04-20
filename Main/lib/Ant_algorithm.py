@@ -15,34 +15,26 @@ from tqdm import tqdm
 from itertools import permutations
 import collections
 from numba import jit
+from itertools import combinations
 
 # from joblib import Parallel, delayed
 # TODO try parallelization, parser
-
-
-parser = argparse.ArgumentParser(
-    formatter_class = argparse.RawDescriptionHelpFormatter,
-    description = textwrap.dedent("""
-
-
-    """))
-
-parser.add_argument("-i", "--configuration_file", type = str, help = "input directory to yaml file", required=True)
-
-args = parser.parse_args()
 
 
 def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
     """The function splits the sequence in input into reads.
     The splitting is done using random numbers, and the number of reads is given by: (len(seq)/length_read)*coverage.
     """
-
-    number_of_reads = int(len(seq)/length_reads) * coverage
-    starting_pos = random.sample(range(0, len(seq) - length_reads + 1), number_of_reads)
+    len_sequence = (len(seq))
+    number_of_reads = int(len_sequence/length_reads) * coverage
+    starting_pos = random.sample(range(0, len_sequence - (length_reads/2) + 1), number_of_reads)
     reads = []
 
     for num in starting_pos:
-        reads.append(seq[num:num + length_reads])
+        if num+length_reads> len_sequence:
+            reads.append(seq[num:])
+        else:
+            reads.append(seq[num:num + length_reads])
 
     if verbose:
         y = [0 for _ in range(0, len(seq) + 1)]
@@ -159,7 +151,7 @@ def np_align_func(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mismatc
                 diff = max_lenght_seq -i -1
 
 
-    return score, diff, switch
+    return (score, diff, switch)
 
 def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     """Funtion that evaulate the alignment
@@ -202,7 +194,11 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
     # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
     visited = collections.deque([j for j in range(length)])
+    # comb = combinations(range(len(reads)),2)
+
     
+    # for i,j in comb:
+
     for i in tqdm(range(length)):
 
         for j in visited:
@@ -227,12 +223,12 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
 
                 else:
                     if alignment[1] > 0:
-                        weigth_matrix[j, i] = alignment[0]
-                        weigth_matrix[i, j] = float(f"{0}.{abs(alignment[1])}")
-                    
-                    else:
                         weigth_matrix[i, j] = alignment[0]
                         weigth_matrix[j, i] = float(f"{0}.{abs(alignment[1])}")
+                    
+                    else:
+                        weigth_matrix[j, i] = alignment[0]
+                        weigth_matrix[i, j] = float(f"{0}.{abs(alignment[1])}")
 
                     
         visited.popleft()
@@ -267,119 +263,108 @@ def __set_up__(time:time) -> tuple:
     return (problem, reads, seq)
 
 
-def main():
+# def main():
 
-    # Starting time
-    now = datetime.datetime.now()
-    start = time.time()
+#     # Starting time
+#     now = datetime.datetime.now()
+#     start = time.time()
 
-    problem , reads, seq = __set_up__(time = now)
+#     problem , reads, seq = __set_up__(time = now)
 
-    # Partial for the matrix:
-    partial = time.time()
-    print(f"[{time}]: Time for matrix:  {partial - start}")
+#     # Partial for the matrix:
+#     partial = time.time()
+#     print(f"[{time}]: Time for matrix:  {partial - start}")
     
-    args = {}
-    args["fig_title"] = "ACS"
+#     args = {}
+#     args["fig_title"] = "ACS"
 
-    prng = Random(SEED)
-    args = {}
-    args["fig_title"] = "ACS"
+#     prng = Random(SEED)
+#     args = {}
+#     args["fig_title"] = "ACS"
 
-    # Problem and ACS:
-    ac = inspyred.swarm.ACS(prng, problem.components)
-    ac.terminator = inspyred.ec.terminators.generation_termination
+#     # Problem and ACS:
+#     ac = inspyred.swarm.ACS(prng, problem.components)
+#     ac.terminator = inspyred.ec.terminators.generation_termination
 
-    if VERBOSE:
-        display = True
-        ac.observer = inspyred.ec.observers.stats_observer
-    else:
-        display = False
+#     if VERBOSE:
+#         display = True
+#         ac.observer = inspyred.ec.observers.stats_observer
+#     else:
+#         display = False
 
-    final_pop = ac.evolve(generator = problem.constructor,
-                        evaluator = inspyred.ec.evaluators.parallel_evaluation_mp, 
-                        mp_evaluator = problem.evaluator, 
-                        bounder = problem.bounder,
-                        maximize = problem.maximize,
-                        mp_nprocs = CPUS,
-                        pop_size = POP_SIZE,
-                        max_generations = MAX_GENERATIONS,
-                        evaporation_rate = EVAPORATION_RATE,
-                        learning_rate = LEARNING_RATE,
-                        **args)
-    best_ACS = max(ac.archive)
+#     final_pop = ac.evolve(generator = problem.constructor,
+#                         evaluator = inspyred.ec.evaluators.parallel_evaluation_mp, 
+#                         mp_evaluator = problem.evaluator, 
+#                         bounder = problem.bounder,
+#                         maximize = problem.maximize,
+#                         mp_nprocs = CPUS,
+#                         pop_size = POP_SIZE,
+#                         max_generations = MAX_GENERATIONS,
+#                         evaporation_rate = EVAPORATION_RATE,
+#                         learning_rate = LEARNING_RATE,
+#                         **args)
+#     best_ACS = max(ac.archive)
 
-    # Final results and final consensus sequence
-    c = [(i.element[0], i.element[1]) for i in best_ACS.candidate]
-    d = final_consensus(c, reads, length = 5000, positions = problem.weights)
-    al = pairwise2.align.localms(d, seq, 3,-1,-5,-5)[0]
+#     # Final results and final consensus sequence
+#     c = [(i.element[0], i.element[1]) for i in best_ACS.candidate]
+#     d = final_consensus(c, reads, length = 5000, positions = problem.weights)
+#     al = pairwise2.align.localms(d, seq, 3,-1,-5,-5)[0]
 
-    # Writing the results:
-    ll = []
-    ll.append("The first line is the reconstructed seq, while the second is the real sequence:\n")
-    cnt=0
-    for i in range(50,len(al[0]),50):
-        ll.append(str(al[0][cnt:i]))
-        ll.append("\n")
-        ll.append(str(al[1][cnt:i]))
-        ll.append("\n\n")
-        cnt += 50
+#     # Writing the results:
+#     ll = []
+#     ll.append("The first line is the reconstructed seq, while the second is the real sequence:\n")
+#     cnt=0
+#     for i in range(50,len(al[0]),50):
+#         ll.append(str(al[0][cnt:i]))
+#         ll.append("\n")
+#         ll.append(str(al[1][cnt:i]))
+#         ll.append("\n\n")
+#         cnt += 50
 
-    ll.append("\n")
-    ll.append("Score of the allignment after the reconstruction:\n")
-    ll.append(str(al[2]))
-    ll.append("\nThe percentage of macht in the allignment is:")
-    ll.append("\n")
+#     ll.append("\n")
+#     ll.append("Score of the allignment after the reconstruction:\n")
+#     ll.append(str(al[2]))
+#     ll.append("\nThe percentage of macht in the allignment is:")
+#     ll.append("\n")
 
-    cnt = 0
-    for i in range(len(al[0])):
-        if al[0][i] == al[1][i]:
-            cnt += 1
-    ll.append(str(cnt/len(seq))) 
+#     cnt = 0
+#     for i in range(len(al[0])):
+#         if al[0][i] == al[1][i]:
+#             cnt += 1
+#     ll.append(str(cnt/len(seq))) 
 
-    if not os.path.exists(PATH_OUT):
-        os.makedirs
+#     if not os.path.exists(PATH_OUT):
+#         os.makedirs
 
-    new_file = open(PATH_OUT, "w")
-    new_file.writelines(ll)
-    new_file.close()
+#     new_file = open(PATH_OUT, "w")
+#     new_file.writelines(ll)
+#     new_file.close()
 
-    stop = time.time()
-    print(f"[{now}] Time: {stop - start}")
+#     stop = time.time()
+#     print(f"[{now}] Time: {stop - start}")
 
 ################################################
 
 # ./config_file.yaml
 
-with open(args.configuration_file, "r") as file:
+# with open(args.configuration_file, "r") as file:
 
-    file = yaml.safe_load(file)
+#     file = yaml.safe_load(file)
 
-    PATH_IN = file["data_path_file"]
-    PATH_OUT = file["directory_to_save"]
-    COVERAGE = file["coverage"]
-    LENGHT_READS = file["custom_reads_lenght"]
-    NUM_BASE = file["num_of_bases"]
-    POP_SIZE = file["population_size"]
-    MAX_GENERATIONS = file["num_of_maximum_generations"]
-    SEED = file["seed"]
-    EVAPORATION_RATE = file["evaporation rate"]
-    LEARNING_RATE = file["learning_rate"]
-    CPUS = file["cpus"]
-    VERBOSE = file["verbose"]
+#     PATH_IN = file["data_path_file"]
+#     PATH_OUT = file["directory_to_save"]
+#     COVERAGE = file["coverage"]
+#     LENGHT_READS = file["custom_reads_lenght"]
+#     NUM_BASE = file["num_of_bases"]
+#     POP_SIZE = file["population_size"]
+#     MAX_GENERATIONS = file["num_of_maximum_generations"]
+#     SEED = file["seed"]
+#     EVAPORATION_RATE = file["evaporation rate"]
+#     LEARNING_RATE = file["learning_rate"]
+#     CPUS = file["cpus"]
+#     VERBOSE = file["verbose"]
 
-print("""
-         _       __    _   __________ 
-        / \     |   \ | | |___   ____|
-       / _ \    | |\ \| |     | |     
-      / /_\ \   | | \   |     | |       
-     /  ___  \  | |  \  |     | |     ___|^-^| ___|^-^|   
-    /_/     \_\ |_|   \_|     |_|     /\ /\    /\ /\ 
-
-Author: Filippo A. Mirolo, 2024
-""")
-
-main()
+# main()
 
 # if __name__== "main":
 #     main()
