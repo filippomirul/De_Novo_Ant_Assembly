@@ -188,7 +188,7 @@ class Assembly_problem():
     
     def __init__(self, matrix:list, approximate_length:int, reads_length:int):
         self.weights = matrix
-        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if modf(self.weights[i,j])[1] > 0]
+        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if self.weights[i,j] > 1]
         self.bias = 0.5
         self.bounder = ec.DiscreteBounder([i for i in range(len(self.weights))])
         self.best_path = None

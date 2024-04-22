@@ -1,21 +1,14 @@
-from Bio import SeqIO
 from Bio import pairwise2   # Biopython version <= 1.79
 import datetime
-import argparse
-import textwrap
-import os
-import yaml
-from Bio.Seq import Seq
 import numpy as np
 import random
 import matplotlib.pyplot as plt
 from random import Random
 import time
 from tqdm import tqdm
-from itertools import permutations
 import collections
 from numba import jit
-from itertools import combinations
+
 
 # from joblib import Parallel, delayed
 # TODO try parallelization, parser
@@ -37,7 +30,6 @@ def extracting_sequence(input_path:str, limit = 5000, format="fasta")->str:
 def de_code(read:np.ndarray)->str:
     return "".join([chr(c) for c in read])
 
-@jit(nopytho = True)
 def uni_code(read:str)->np.ndarray:
     return np.array([ord(c) for c in read])
 
@@ -175,10 +167,11 @@ def np_align_func(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mismatc
 
     return (score, diff, switch)
 
+
 def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     """Funtion that evaulate the alignment
 
-    reads: list of DNA sequences, each of the read is a string
+    reads: list of DNA sequences, each of the read is a list of integers that resemble the real sequence
 
     par: list of parameters to performe the alignment
     es (the examples represent the defoult parameters):
@@ -192,7 +185,7 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     Ex:
         allignment score -> 2.0, 13.0, ...
         overlapping number -> 0.241, 0.61, 0.561, ...
-            To avoid problem later with 0 a 1 digit is added for then remove it. So 12.30 become 12.301 but the corret indices are 12 and 30.
+            To avoid problem later with 0 a 1 digit is added for then remove it. So 0.30 become 0.301 but the corret indices are 12 and 30.
 
         These two numbers are link by the position in the matrix which are the trasposition
         Score 14.0 in position (1,5) --> 0.34 in position (5,1). Only the score position is referred
@@ -227,11 +220,7 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
                 continue
             else:
                 # pairwise must return a positive score, if there is no one it return None
-                reads_1 = np.array([ord(c) for c in reads[i]])
-                # print(f"Read_1 : {reads_1}")
-                reads_2 = np.array([ord(p) for p in reads[j]])
-                # print(f"Read_2 : {reads_2}")
-                alignment = np_align_func(reads_1, reads_2, match = par[0], mismatch = par[1])
+                alignment = np_align_func(reads[i], reads[j], match = par[0], mismatch = par[1])
 
                 if alignment[2]:
                     if alignment[1] > 0:
@@ -253,5 +242,5 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
 
                     
         visited.popleft()
-    print(f"Done matrix {len(weigth_matrix)}x{len(weigth_matrix)}")
     return weigth_matrix
+

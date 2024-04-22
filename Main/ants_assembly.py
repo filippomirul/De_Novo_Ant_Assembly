@@ -1,9 +1,12 @@
 from lib.ants import *
 from lib.colony import *
 from inspyred import swarm, ec
+import subprocess
 import argparse
 import textwrap
+from joblib import Parallel, delayed
 import time 
+from scipy.io import savemat
 
 
 def incipit():
@@ -65,46 +68,19 @@ def main():
 
     reads = custom_reads(seq = sequence, coverage = args.coverage, length_reads = args.reads_length)
 
+    reads = Parallel(n_jobs=args.cpus)(delayed(uni_code)(i)for i in reads)
+
     # Building the Overlap-Layout Consensus (OLC) graph
 
     graph = eval_allign_np(reads = reads)
 
-###########################################
+    data = {"data":graph}
 
-# This should be run with a separate script, it mesed up with cores
-    # Problem and ACS:
+    savemat("data", data, do_compression=True)
 
-    seed = random.randint(1, 100)
-    prng = Random(seed)
+# Here goes the travel scipt
 
-    problem = Assembly_problem(matrix = graph, approximate_length = args.ipothetical_length, reads_length = args.reads_length)
-
-    ac = swarm.ACS(prng, problem.components)
-    
-    ac.terminator = ec.terminators.generation_termination
-
-    if args.verbose:
-        display = True
-        ac.observer = ec.observers.stats_observer
-    else:
-        display = False
-
-
-
-    final_pop = ac.evolve(generator = problem.constructor,
-                        evaluator = ec.evaluators.parallel_evaluation_mp, 
-                        mp_evaluator = problem.evaluator, 
-                        bounder = problem.bounder,
-                        maximize = problem.maximize,
-                        mp_nprocs = args.cpus_cores,
-                        pop_size = args.population_size,
-                        max_generations = args.max_generations,
-                        evaporation_rate = args.evaporation_rate,
-                        learning_rate = args.learning_rate,
-                        **args)
-    best_ACS = max(ac.archive)
-
-############################################
+    subprocess.run("...")
 
     cov = args.coverage + (args.coverage/10)
 
