@@ -1,15 +1,13 @@
+import os 
 from itertools import permutations
 from math import modf
 from inspyred import swarm
 from inspyred import ec
 from inspyred.ec import selectors
-from random import Random
 import numpy as np
-from tqdm import tqdm
-import collections
-collections.Iterable = collections.abc.Iterable
-collections.Sequence = collections.abc.Sequence
-from itertools import permutations
+# import collections
+# collections.Iterable = collections.abc.Iterable
+# collections.Sequence = collections.abc.Sequence
 
 def matrix_print(matrix:list) -> None:
     traslator = d = {1:"A", 2:"T", 3:"C", 4:"G", 0:"-"}
@@ -45,7 +43,7 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
     cum_dif = 0
     adding = np.zeros((max_coverage, int(length/100)))
 
-    for i,j in tqdm(path):
+    for i,j in path:
         # Here i,j represent the edge of the graph, to retrive not the score but the alignment
         # the function needs the opposite position where there are these informations matrix[j][i]
         # something like 12.22, 12 is the strating base 22 is the ending base of the overlapping, both included.
@@ -122,6 +120,47 @@ def consensus_sequence_partial(path:list, positions:list , reads_len:int) -> int
     
     return tot_seq 
 
+def out_files(path_out:str ,reads:list, candidate:list, matrix:list):
+
+    # Final results and final consensus sequence
+    c = [(i.element[0], i.element[1]) for i in candidate]
+    d = final_consensus(c, reads, length=5000, positions = matrix)
+
+    al = function()
+
+    # Writing the results:
+    ll = []
+    ll.append("Thr first line is the reconstructed seq, while the second is the real sequence:\n")
+    cnt=0
+    for i in range(50,len(al[0]),50):
+        ll.append(str(al[0][cnt:i]))
+        ll.append("\n")
+        ll.append(str(al[1][cnt:i]))
+        ll.append("\n\n")
+        cnt += 50
+
+    ll.append("\n")
+    ll.append("Score of the allignment after the reconstruction:\n")
+    ll.append(str(al[2]))
+    ll.append("\nThe percentage of macht in the allignment is:")
+    ll.append("\n")
+
+    cnt = 0
+    for i in range(len(al[0])):
+        if al[0][i] == al[1][i]:
+            cnt += 1
+    ll.append(str(cnt/len(seq))) 
+
+    if not os.path.exists(path_out):
+        os.makedirs
+
+    new_file = open(path_out, "w")
+    new_file.writelines(ll)
+    new_file.close()
+
+    return None
+
+
 class Assembly_problem():
     """
     Defines the de novo genome assembly problem.
@@ -149,7 +188,7 @@ class Assembly_problem():
     
     def __init__(self, matrix:list, approximate_length:int, reads_length:int):
         self.weights = matrix
-        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if modf(self.weights[i,j])[0] == 0]
+        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if modf(self.weights[i,j])[1] > 0]
         self.bias = 0.5
         self.bounder = ec.DiscreteBounder([i for i in range(len(self.weights))])
         self.best_path = None
