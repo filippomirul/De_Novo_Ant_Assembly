@@ -1,10 +1,12 @@
-import os 
 from itertools import permutations
+import os
+from joblib import Parallel, delayed
 from math import modf
 from inspyred import swarm
 from inspyred import ec
 from inspyred.ec import selectors
 import numpy as np
+
 # import collections
 # collections.Iterable = collections.abc.Iterable
 # collections.Sequence = collections.abc.Sequence
@@ -20,83 +22,8 @@ def matrix_print(matrix:list) -> None:
 
     return 
 
-def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16, verbose:bool = False) ->str:
-    """Rebluild from the list of reds, the path and the matrix with the scores the allignment.
 
-    path:list of tuple with edges --> [(1,3), (3,6), ...]
-    reads: list of the reads ---> ["ATCGA", "AGGCTG", ...] 
-    positions: is the weigth matrix, but will be considered only the number linked with the base overlapping
-
-    output: a string with the sequece reconstructed    
-
-    Ex
-        path = [(6,5), (5,9), (9,11), (11,7), (7,4), (4,1), (1,3)]
-        reads = ['RAGIL', 'LISTI', 'LIFRA', 'STICH', 'GILIS', 'ERCAL', 'SUPER', 'FRAGI', 'ILIST', 'RCALI', 'PERCA', 'ALIFR']
-        positions: for space reason the matrix is not presented, but is similar to the one in the eval_allign help.
-    """
-
-    D = {"A":1, "T":2, "C":3, "G":4}
-    d = {1:"A", 2:"T", 3:"C", 4:"G"}
-
-    rec = np.zeros((max_coverage, length))
-    leng = len(rec[0])
-    cum_dif = 0
-    adding = np.zeros((max_coverage, int(length/100)))
-
-    for i,j in path:
-        # Here i,j represent the edge of the graph, to retrive not the score but the alignment
-        # the function needs the opposite position where there are these informations matrix[j][i]
-        # something like 12.22, 12 is the strating base 22 is the ending base of the overlapping, both included.
-
-        num = str(positions[j][i]).split(".")
-        # start = int(num[1][:-1])  # included
-        dif = int(num[0])
-
-        if rec[0,0] == 0:
-            
-            for pos in range(0, len(reads[i])):
-                if rec[0,pos]!=0:
-                    rec = np.append(rec,adding, 1)
-                rec[0,pos] = D[reads[i][pos]]
-            cum_dif += dif
-            temp = 0
-            for p in range(cum_dif, cum_dif + len(reads[j])):
-                if rec[1,pos]!=0:
-                    rec = np.append(rec, adding, 1)
-                rec[1, p] = D[reads[j][temp]]
-                temp +=1
-
-        else:
-            cum_dif += dif
-            temp = 0
-            for pos in range(cum_dif, cum_dif+len(reads[j])):
-                if rec[0,pos]!=0:
-                    rec = np.append(rec, adding, 1)
-                row = 0
-                while rec[row, pos] >= 1:
-                    row += 1
-                rec[row, pos] = D[reads[j][temp]]
-                temp +=1
-
-    if verbose:
-        # TODO here we wants stats
-        matrix_print(rec)
-        
-    cons_seq = ""
-    for i in range(0, leng):
-        base = [int(x) for x in rec[:,i] if x > 0]
-        if base == []:
-            return cons_seq
-        ind = []
-        for num in [1,2,3,4]:
-            ind.append(base.count(num))
-        more_frequent = ind.index(max(ind)) + 1
-        # TODO stats
-        cons_seq += d[more_frequent]
-
-    return cons_seq
-
-def consensus_sequence_partial(path:list, positions:list , reads_len:int) -> int:
+def __consensus_sequence_partial__(path:list, positions:list , reads_len:int) -> int:
     """
     This is called in to evaluate the length of the sequence, so there is no need to build the actual sequence.
     Therefore is used only the shifting paramiter "dif" to calculate the length.
@@ -119,6 +46,93 @@ def consensus_sequence_partial(path:list, positions:list , reads_len:int) -> int
         cnt += 1
     
     return tot_seq 
+
+
+def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16, verbose:bool = False) ->str:
+    """This function create a matrix and write down the numbers resembling the path found by the ants algorithm
+    """
+    #Diff is included
+
+    cons_matrix = np.zeros((max_coverage, length))
+    leng = len(cons_matrix[0])
+    cum_dif = 0
+    adding = np.zeros((max_coverage, int(length/100)))
+
+    for i,j in path:
+        # Here i,j represent the edge of the graph, to retrive not the score but the alignment
+        # the function needs the opposite position where there are these informations matrix[j][i]
+
+        num = str(positions[j][i]).split(".")
+        dif = int(num[0])
+
+        if cons_matrix[0,0] == 0:
+            # This first part is for starting the writing of the matrix
+            
+            for pos in range(0, len(reads[i]) + 1):
+                if cons_matrix[0, pos] != 0:
+                    cons_matrix = np.append(cons_matrix, adding, 1)
+                cons_matrix[0, pos] = reads[i][pos]
+            cum_dif += dif
+            temp = 0
+            for p in range(cum_dif + 1, cum_dif + len(reads[j]) + 1): # added +1 in last mod
+                if cons_matrix[1,pos] != 0:
+                    cons_matrix = np.append(cons_matrix, adding, 1)
+                cons_matrix[1, p] = reads[j][temp]
+                temp += 1
+
+        else:
+            # There is a check if the initialized matrix is big enough to contain all tha bases, columns wise
+            if cons_matrix.shape[1] < cum_dif + len(reads[j])*2:
+                cons_matrix = np.append(cons_matrix, adding, 1)
+            else:
+                cum_dif += dif
+                temp = 0
+                for pos in range(cum_dif + 1, cum_dif + len(reads[j]) + 1): # added +1 in last mod
+                    row = 0
+                    while cons_matrix[row, pos] >= 1:
+                        row += 1
+                    # There is a check if the initialized matrix is big enough to contain all tha bases, row wise
+                    if row == cons_matrix.shape[0]:
+                        cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1])) ,0)
+                    cons_matrix[row, pos] = reads[j][temp]
+                    temp +=1
+
+    return cons_matrix
+
+
+def __re_build__(cons_matrix:list):
+    
+    dictionary = "ATCG"
+    cons_seq = ""
+    for i in range(0, len(cons_matrix)):
+        base = [x for x in cons_matrix[:,i] if x > 0]
+        if base == []:
+            return cons_seq
+        ind = []
+        for num in [ord(c) for c in dictionary]:
+            ind.append(base.count(num))
+        more_frequent = ind.index(max(ind))
+        # TODO stats
+        cons_seq += dictionary[more_frequent]
+
+    return cons_seq
+
+
+def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int=1)-> str:
+    "This functio is just to implement the use of multiples core for recostructing the final sequence."
+
+    step = len(consensus_matrix)/cpus
+    cnt = 0
+    partials = []
+    for i in range(step, len(consensus_matrix) + step, step):
+        partials.append((cnt,i))
+        cnt += i
+    sub_parts = [consensus_matrix[:,i:j] for i,j in partials]
+    
+    results = Parallel(n_jobs=cpus)(delayed(__re_build__)(i) for i in sub_parts)
+
+    return "".join(results)
+
 
 def out_files(path_out:str ,reads:list, candidate:list, matrix:list):
 
@@ -186,19 +200,18 @@ class Assembly_problem():
       (default 0.5)
     """
     
-    def __init__(self, matrix:list, approximate_length:int, reads_length:int):
+    def __init__(self, matrix:list, approximate_length:int, reads_len:int):
         self.weights = matrix
-        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if self.weights[i,j] > 1]
-        self.bias = 0.5
+        self.reads_len = reads_len
+        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if (modf(self.weights[i,j])[0] == 0) and (self.weights[i,j] != 0)]
+        self.bias = 0.65
         self.bounder = ec.DiscreteBounder([i for i in range(len(self.weights))])
         self.best_path = None
         self.maximize = True
         self.length = approximate_length
-        self.reads_len = reads_length
     
     def constructor(self, random, args):
         """Return a candidate solution for an ant colony optimization."""
-        self._use_ants = True
         candidate = []
         feasible_components = [1]   #Fake initialization to allow while loop to start
         
@@ -216,7 +229,7 @@ class Assembly_problem():
                 already_visited = [c.element[0] for c in candidate]
                 already_visited.extend([c.element[1] for c in candidate])
                 already_visited = set(already_visited)
-                feasible_components = [c for c in self.components if c.element[0] == last.element[1] and c.element[1] not in already_visited]
+                feasible_components = [c for c in self.components if (c.element[0] == last.element[1]) and (c.element[1] not in already_visited)]
             if len(feasible_components) == 0:
                 return candidate
             # Choose a feasible component
@@ -227,6 +240,7 @@ class Assembly_problem():
             candidate.append(next_component)
         return candidate
     
+    # TODO Implement
     def cross_over(path:list, matrix:list):
         """This function recombine the solution, is a sort of crossing-over. Takes the path and the score associated to each edge
         iterate over the path and switch two edge.
@@ -241,7 +255,7 @@ class Assembly_problem():
             # make cross over between those two
             return None
 
-    
+    # TODO rebuild
     def evaluator(self, candidates:list, args):
         """Return the fitness values for the given candidates."""
         fitness = []
@@ -250,9 +264,9 @@ class Assembly_problem():
             for c in candidate:
                 total += self.weights[c.element[0]][c.element[1]]
             last = (candidate[-1].element[1], candidate[0].element[0])
-            current_path=[(i.element[0], i.element[1]) for i in candidate] # al posto della seconda i c'era una c
+            current_path=[(c.element[0], c.element[1]) for c in candidate] 
             total += self.weights[last[0]][last[1]]
-            current_sequence = consensus_sequence_partial(current_path, positions=self.weights, reads_len = self.reads_len)
+            current_sequence = __consensus_sequence_partial__(current_path, positions=self.weights, reads_len = self.reads_len)
             length_score = abs((self.length-current_sequence)/self.length)
             s = [5, 3, 1, 0.5, 0.2]
             perc=[0, 0.01, 0.05, 0.08, 0.1, 0.2]
@@ -269,3 +283,4 @@ class Assembly_problem():
             fitness.append(score)
 
         return fitness
+
