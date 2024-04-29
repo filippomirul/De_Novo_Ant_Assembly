@@ -1,6 +1,7 @@
 from lib.ants import *
 from lib.colony import *
 from inspyred import swarm, ec
+from random import Random
 import os
 import argparse
 import datetime

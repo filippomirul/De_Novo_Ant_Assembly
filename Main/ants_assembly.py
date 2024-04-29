@@ -1,10 +1,9 @@
-from lib.ants import *
 from lib.colony import *
 import subprocess
+import os
 import shlex
 import argparse
 import textwrap
-from joblib import Parallel, delayed
 import datetime 
 from scipy.io import savemat, loadmat
 
@@ -90,7 +89,8 @@ def main():
         # length_reads = mean(args.input)
 
     print(f"[{datetime.datetime.now()}]: Starting the encoding of the reads")
-    reads = Parallel(n_jobs=args.cpu_cores)(delayed(uni_code)(i)for i in reads)
+
+    reads = parallel_coding(reads=reads, number_cpus=args.cpu_cores)
 
     print(f"[{datetime.datetime.now()}]: Reads has been successfully converted!")
 
@@ -100,15 +100,16 @@ def main():
     graph = eval_allign_np(reads = reads)
     
     num_links = eval_nonzeros(graph)/2
-    print(f"[{datetime.datetime.now()}]: Finished the building of the data structure. Graph has {num_links} links")
+    print(f"[{datetime.datetime.now()}]: Finished the building of the data structure. Graph has {num_links} edges")
+
+    # Semplifing the OCL
 
     print(f"[{datetime.datetime.now()}]: Starting with the simplification of the graph")
 
     graph = graph_semplification(graph=graph, cores = args.cpu_cores)
     num_links = eval_nonzeros(graph)/2
-    print(f"[{datetime.datetime.now()}]: Finished the building of the data structure. Graph has {num_links} links")
 
-    print(f"[{datetime.datetime.now()}]: Simplification has been completed!!")
+    print(f"[{datetime.datetime.now()}]: Finished the reduction of the data structure. Graph has {num_links} edges")
     print(f"[{datetime.datetime.now()}]: The problem dimension is {len(graph)}x{len(graph)}")
 
     # print(graph)
@@ -159,3 +160,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # TODO list:
+    #       Final_reconstructor
+    #       Simplification
+    #       Output writing
+    #       Tuning

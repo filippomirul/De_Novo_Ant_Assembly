@@ -1,9 +1,9 @@
 from Bio import SeqIO
+import os
 import numpy as np
 import random
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
-from random import Random
 from tqdm import tqdm
 import collections
 from numba import jit, prange
@@ -23,12 +23,21 @@ def extracting_sequence(input_path:str, limit = 5000, format="fasta")->str:
     return str(seq)
 
 
-def de_code(read:np.ndarray)->str:
+def __de_code__(read:np.ndarray)->str:
     return "".join([chr(c) for c in read])
 
 
-def uni_code(read:str)->np.ndarray:
+def __uni_code__(read:str)->np.ndarray:
     return np.array([ord(c) for c in read])
+
+
+def parallel_coding(reads:list, number_cpus:int, uni_coding=True):
+    if uni_coding:
+        reads = Parallel(n_jobs=number_cpus)(delayed(__uni_code__)(i)for i in reads)
+        return reads
+    else:
+        reads = Parallel(n_jobs=number_cpus)(delayed(__de_code__)(i)for i in reads)
+        return reads
 
 
 def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
@@ -270,35 +279,39 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
 def __prepare_simpl_intup__(matrix:np.ndarray)->list:
     """Is needed to set up the parallelization, divide the matrix in columns
     """
-    # output = (array, len_array, column)
+    # output = (array, column)
 
-    len_arrray = matrix.shape[0]
     my_list = []
 
     for i in range(len(matrix)):
-        my_list.append((list(matrix[:,i]), len_arrray, i))
+        my_list.append((list(matrix[:,i]), i))
 
     return my_list
 
 
-def __matrix_selection__(input_tuple:tuple, cut_off = 0.2)->list:
-    """Value the distibution of the columns, in this way select the ones
-    above the third quantile
+def __matrix_selection__(input_tuple:tuple, cut_off = 0.15)->list:
+    """Value the distibution of the columns
     """
 
     # Init
     array = input_tuple[0]
-    array_len = input_tuple[1]
-    column = input_tuple[2]
+    column = input_tuple[1]
 
-    # DO DO
+    # 
     links = [x for x in array if (x > 0) and (str(x).split(".")[1] == "0")]
+    to_not_touch = [x for x in array if (str(x).split(".")[1] == "1")]
     chosen = sorted(links)[-(int(len(links)*cut_off)):]
     dissmissable_links = []
 
-    for i in links:
-        if i not in chosen:
-            dissmissable_links.append((array.index(i), column))
+    cnt=0
+    for i in array:
+        if (i not in chosen) and (i not in to_not_touch):
+            dissmissable_links.append((cnt,column))
+        cnt += 1
+
+    # for i in links:
+    #     if i not in chosen:
+    #         dissmissable_links.append((array.index(i), column))
 
     return dissmissable_links
 
@@ -332,4 +345,131 @@ def eval_nonzeros(graph:np.ndarray)-> int:
         cnt += np.count_nonzero(graph[i])
 
     return cnt
+
+
+def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16, verbose:bool = False) ->str:
+    """This function create a matrix and write down the numbers resembling the path found by the ants algorithm
+    """
+    #Diff is included
+
+    cons_matrix = np.zeros((max_coverage, length))
+    leng = len(cons_matrix[0])
+    cum_dif = 0
+    adding = np.zeros((max_coverage, int(length/100)))
+
+    for i,j in path:
+        # Here i,j represent the edge of the graph, to retrive not the score but the alignment
+        # the function needs the opposite position where there are these informations matrix[j][i]
+
+        num = str(positions[j][i]).split(".")
+        dif = int(num[0])
+
+        if cons_matrix[0,0] == 0:
+            # This first part is for starting the writing of the matrix
+            
+            for pos in range(0, len(reads[i]) + 1):
+                if cons_matrix[0, pos] != 0:
+                    cons_matrix = np.append(cons_matrix, adding, 1)
+                cons_matrix[0, pos] = reads[i][pos]
+            cum_dif += dif
+            temp = 0
+            for p in range(cum_dif + 1, cum_dif + len(reads[j]) + 1): # added +1 in last mod
+                if cons_matrix[1,pos] != 0:
+                    cons_matrix = np.append(cons_matrix, adding, 1)
+                cons_matrix[1, p] = reads[j][temp]
+                temp += 1
+
+        else:
+            # There is a check if the initialized matrix is big enough to contain all tha bases, columns wise
+            if cons_matrix.shape[1] < cum_dif + len(reads[j])*2:
+                cons_matrix = np.append(cons_matrix, adding, 1)
+            else:
+                cum_dif += dif
+                temp = 0
+                for pos in range(cum_dif + 1, cum_dif + len(reads[j]) + 1): # added +1 in last mod
+                    row = 0
+                    while cons_matrix[row, pos] >= 1:
+                        row += 1
+                    # There is a check if the initialized matrix is big enough to contain all tha bases, row wise
+                    if row == cons_matrix.shape[0]:
+                        cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1])) ,0)
+                    cons_matrix[row, pos] = reads[j][temp]
+                    temp +=1
+
+    return cons_matrix
+
+
+def __re_build__(cons_matrix:list):
+    
+    dictionary = "ATCG"
+    cons_seq = ""
+    for i in range(0, len(cons_matrix)):
+        base = [x for x in cons_matrix[:,i] if x > 0]
+        if base == []:
+            return cons_seq
+        ind = []
+        for num in [ord(c) for c in dictionary]:
+            ind.append(base.count(num))
+        more_frequent = ind.index(max(ind))
+        # TODO stats
+        cons_seq += dictionary[more_frequent]
+
+    return cons_seq
+
+
+def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int=1)-> str:
+    "This functio is just to implement the use of multiples core for recostructing the final sequence."
+
+    step = len(consensus_matrix)/cpus
+    cnt = 0
+    partials = []
+    for i in range(step, len(consensus_matrix) + step, step):
+        partials.append((cnt,i))
+        cnt += i
+    sub_parts = [consensus_matrix[:,i:j] for i,j in partials]
+    
+    results = Parallel(n_jobs=cpus)(delayed(__re_build__)(i) for i in sub_parts)
+
+    return "".join(results)
+
+
+def out_files(path_out:str ,reads:list, candidate:list, matrix:list):
+
+    # Final results and final consensus sequence
+    c = [(i.element[0], i.element[1]) for i in candidate]
+    d = final_consensus(c, reads, length=5000, positions = matrix)
+
+    al = function()
+
+    # Writing the results:
+    ll = []
+    ll.append("Thr first line is the reconstructed seq, while the second is the real sequence:\n")
+    cnt=0
+    for i in range(50,len(al[0]),50):
+        ll.append(str(al[0][cnt:i]))
+        ll.append("\n")
+        ll.append(str(al[1][cnt:i]))
+        ll.append("\n\n")
+        cnt += 50
+
+    ll.append("\n")
+    ll.append("Score of the allignment after the reconstruction:\n")
+    ll.append(str(al[2]))
+    ll.append("\nThe percentage of macht in the allignment is:")
+    ll.append("\n")
+
+    cnt = 0
+    for i in range(len(al[0])):
+        if al[0][i] == al[1][i]:
+            cnt += 1
+    ll.append(str(cnt/len(seq))) 
+
+    if not os.path.exists(path_out):
+        os.makedirs
+
+    new_file = open(path_out, "w")
+    new_file.writelines(ll)
+    new_file.close()
+
+    return None
 
