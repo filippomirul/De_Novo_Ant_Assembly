@@ -40,7 +40,7 @@ def parallel_coding(reads:list, number_cpus:int, uni_coding=True):
         return reads
 
 
-def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
+def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
     """The function splits the sequence in input into reads.
     The splitting is done using random numbers, and the number of reads is given by: (len(seq)/length_read)*coverage.
     """
@@ -73,7 +73,7 @@ def custom_reads(seq: str, length_reads:int = 160, coverage:int = 5, verbose = F
         plt.xlabel("Position")
         plt.ylabel("Coverage")
         plt.title("Coverage Plot")
-        plt.savefig("C:\\Users\\filoa\\OneDrive\\Desktop\\Programming_trials\\Assembler")
+        plt.savefig(res_path)
 
     return reads
 
@@ -275,69 +275,6 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     return weigth_matrix
 
 
-@jit(nopython = True)
-def __prepare_simpl_intup__(matrix:np.ndarray)->list:
-    """Is needed to set up the parallelization, divide the matrix in columns
-    """
-    # output = (array, column)
-
-    my_list = []
-
-    for i in range(len(matrix)):
-        my_list.append((list(matrix[:,i]), i))
-
-    return my_list
-
-
-def __matrix_selection__(input_tuple:tuple, cut_off = 0.15)->list:
-    """Value the distibution of the columns
-    """
-
-    # Init
-    array = input_tuple[0]
-    column = input_tuple[1]
-
-    # 
-    links = [x for x in array if (x > 0) and (str(x).split(".")[1] == "0")]
-    to_not_touch = [x for x in array if (str(x).split(".")[1] == "1")]
-    chosen = sorted(links)[-(int(len(links)*cut_off)):]
-    dissmissable_links = []
-
-    cnt=0
-    for i in array:
-        if (i not in chosen) and (i not in to_not_touch):
-            dissmissable_links.append((cnt,column))
-        cnt += 1
-
-    # for i in links:
-    #     if i not in chosen:
-    #         dissmissable_links.append((array.index(i), column))
-
-    return dissmissable_links
-
-
-def __matrix_sempl__(matrix:np.ndarray, dissmissable_links:list) -> np.ndarray:
-    """Changes the occurrencie valued as unprobable in zeros, eraising in this way the link
-    """
-    for epoch in dissmissable_links:
-        for i,j in epoch:
-            matrix[i,j] = 0. 
-            matrix[j,i] = 0.
-
-    return matrix
-
-
-def graph_semplification(graph:np.ndarray, cores:int)->np.ndarray:
-    
-    list_of_tuple = __prepare_simpl_intup__(graph)
-
-    indeces_to_cut = Parallel(n_jobs = cores)(delayed(__matrix_selection__)(i) for i in list_of_tuple)
-
-    matrix = __matrix_sempl__(graph, dissmissable_links=indeces_to_cut)
-
-    return matrix
-
-
 def eval_nonzeros(graph:np.ndarray)-> int:
 
     cnt = 0
@@ -367,7 +304,7 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
         if cons_matrix[0,0] == 0:
             # This first part is for starting the writing of the matrix
             
-            for pos in range(0, len(reads[i]) + 1):
+            for pos in range(0, len(reads[i])):
                 if cons_matrix[0, pos] != 0:
                     cons_matrix = np.append(cons_matrix, adding, 1)
                 cons_matrix[0, pos] = reads[i][pos]
@@ -391,15 +328,15 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
                     while cons_matrix[row, pos] >= 1:
                         row += 1
                     # There is a check if the initialized matrix is big enough to contain all tha bases, row wise
-                    if row == cons_matrix.shape[0]:
-                        cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1])) ,0)
+                        if row == cons_matrix.shape[0]:
+                            cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1])) ,0)
                     cons_matrix[row, pos] = reads[j][temp]
                     temp +=1
 
     return cons_matrix
 
 
-def __re_build__(cons_matrix:list):
+def __re_build__(cons_matrix:np.ndarray)->str:
     
     dictionary = "ATCG"
     cons_seq = ""
@@ -417,10 +354,10 @@ def __re_build__(cons_matrix:list):
     return cons_seq
 
 
-def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int=1)-> str:
+def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int)-> str:
     "This functio is just to implement the use of multiples core for recostructing the final sequence."
 
-    step = len(consensus_matrix)/cpus
+    step = int(len(consensus_matrix)/cpus)
     cnt = 0
     partials = []
     for i in range(step, len(consensus_matrix) + step, step):
@@ -434,7 +371,10 @@ def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int=1)-> str:
 
 
 def out_files(path_out:str ,reads:list, candidate:list, matrix:list):
-
+    """Files: fasta with the assembly sequence, variants tsf and stats file.
+    Txt file for training
+    """
+    
     # Final results and final consensus sequence
     c = [(i.element[0], i.element[1]) for i in candidate]
     d = final_consensus(c, reads, length=5000, positions = matrix)

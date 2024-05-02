@@ -1,4 +1,5 @@
 from lib.colony import *
+from lib.Simplification_embedding import *
 import subprocess
 import os
 import shlex
@@ -55,7 +56,7 @@ def main():
     parser.add_argument("-v", "--verbose", type = bool, default = False,
                         help = "Prints and return more information on how the process is developing")
     parser.add_argument("-cpus", "--cpu_cores", type = int,
-                        help = "Number of cpu to use; default = 2", default = 7)
+                        help = "Number of cpu to use; default = 2", default = 2)
     parser.add_argument("-g", "--max_generation", default = 10, help = "Number of iterations/generatios of the ant colony algorithm")
     parser.add_argument("-L", "--ipothetical_length", default = 10000,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
@@ -64,7 +65,9 @@ def main():
 
 
     current_path = os.getcwd()
-    data_out_path = "/".join(current_path.split("\\")[:-1]) + "/Data"
+
+    data_out_path = current_path + "/Data"
+    plots_path = current_path + "Results"
 
     graph_path = data_out_path + "/graph_metadata.mat"
     final_array_path = data_out_path + "/final_array.mat"

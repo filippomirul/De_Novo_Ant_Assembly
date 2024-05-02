@@ -24,7 +24,7 @@ def main():
     parser.add_argument("-v", "--verbose", type = bool, default = False,
                         help = "Prints and return more information on how the process is developing")
     parser.add_argument("-cpus", "--cpus_cores", type = int,
-                        help = "Number of cpu to use; default = 2", default = 7)
+                        help = "Number of cpu to use; default = 2", default = 2)
     parser.add_argument("--reads_lenght", default=200)
     parser.add_argument("-g", "--max_generation", default = 10, help = "Number of iterations/generatios of the ant colony algorithm")
     parser.add_argument("-s", "--simulation", default = True, help="This is development only!")
@@ -34,7 +34,7 @@ def main():
     args = parser.parse_args()
 
     current_path = os.getcwd()
-    data_out_path = "/".join(current_path.split("\\")[:-1]) + "/Data"
+    data_out_path = current_path + "/Data"
     final_array_path = data_out_path + "/final_array.mat"
 
 
