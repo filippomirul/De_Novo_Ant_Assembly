@@ -9,17 +9,6 @@ import numpy as np
 # collections.Iterable = collections.abc.Iterable
 # collections.Sequence = collections.abc.Sequence
 
-def matrix_print(matrix:list) -> None:
-    traslator = d = {1:"A", 2:"T", 3:"C", 4:"G", 0:"-"}
-    line = []
-    for i in range(len(matrix)):
-        line.append("")
-        for j in range(len(matrix[0])):
-            line[i] += traslator[matrix[i][j]]
-        print(line[i])
-
-    return 
-
 
 def __consensus_sequence_partial__(path:list, positions:list , reads_len:int) -> int:
     """
@@ -71,7 +60,7 @@ class Assembly_problem():
       (default 0.5)
     """
     
-    def __init__(self, matrix:list, approximate_length:int, reads_len:int):
+    def __init__(self, matrix:np.ndarray, approximate_length:int, reads_len:int):
         self.weights = matrix
         self.reads_len = reads_len
         self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if (modf(self.weights[i,j])[0] == 0) and (self.weights[i,j] != 0)]

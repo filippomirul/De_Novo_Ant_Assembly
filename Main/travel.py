@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+
 from lib.ants import *
 from lib.colony import *
 from inspyred import swarm, ec

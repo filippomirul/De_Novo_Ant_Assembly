@@ -1,4 +1,3 @@
-from Bio import SeqIO
 import datetime
 import os
 import numpy as np
@@ -8,10 +7,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 import collections
 from numba import jit, prange
-
-
-from Bio import pairwise2
-from Bio import Seq
+from Bio import SeqIO, pairwise2, Seq
 
 def extracting_sequence(input_path:str, limit = 5000, format="fasta")->str:
 
@@ -326,8 +322,8 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
 
         else:
             # There is a check if the initialized matrix is big enough to contain all tha bases, columns wise
-            if cons_matrix.shape[1] < cum_dif + len(reads[j])*2:
-                cons_matrix = np.append(cons_matrix, adding, 1)
+            if cons_matrix.shape[1] < (cum_dif + len(reads[j])*2):
+                cons_matrix = np.append(cons_matrix, np.zeros((cons_matrix.shape[0], int(length/100))), 1)
             else:
                 cum_dif += dif
                 temp = 0
@@ -381,9 +377,46 @@ def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int)-> str:
     return "".join(results)
 
 
+def __printing_alignment__(seq_1:str, seq_2:str)->str:
+
+    al = __np_align_func__(seq_1, seq_2)
+
+    if al[2]:
+        if al[1] > 0:
+            dif = "-" * al[1]
+            seq_1 = dif + seq_1
+            add = "-" * abs(len(seq_1) - len(seq_2))
+            seq_2 = seq_2 + add
+        else:
+            dif = "-" * abs(al[1])
+            seq_2 = dif + seq_2
+            add = "-" * abs(len(seq_1) - len(seq_2))
+            seq_1 = seq_1 + add
+
+
+    else:
+        if al[1] > 0:
+            dif = "-" * al[1]
+            seq_2 = dif + seq_2
+            add = "-" * abs(len(seq_1) - len(seq_2))
+            seq_1 = seq_1 + add
+
+        else:
+            dif = "-" * abs(al[1])
+            seq_1 = dif + seq_1
+            add = "-" * abs(len(seq_1) - len(seq_2))
+            seq_2 = seq_2 + add
+    
+    return seq_1, seq_2
+
 # TODO check
-def efficiency(reference:str, recostructed_sequence:str)-> int:
-    al = __np_align_func__(seq_one=reference, seq_two=recostructed_sequence)
+def efficiency(reference:str, recostructed_sequence:str, cpus = 2)-> int:
+    """Evaluate the efficiency of the recostruction in testing (when --test is parsed)
+    Transform the sequences in np array to do the alignment and then return the percentage of corrected based aligned.
+    """
+    ord_list = parallel_coding([reference, recostructed_sequence], number_cpus=cpus)
+
+    al = __np_align_func__(seq_one=ord_list[0], seq_two=ord_list[1])
 
     num_epoch = min(len(reference), len(recostructed_sequence))
 
@@ -419,6 +452,8 @@ def out_files(ref: str, reconstructed_seq: str):
     """
 
     final_alignment = pairwise2.align.localms(Seq(reconstructed_seq), Seq(ref), 3,-1,-3,-2)[0]
+
+
 
     with open("assembly_results", "w") as results_file:
         results_to_write = ["Reference sequence\n", ref, "\n", "\n","Sequence reconstructed by ACO assembler:\n", reconstructed_seq, "\n", "\n",

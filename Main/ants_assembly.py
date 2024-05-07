@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+
 from lib.colony import *
 from lib.Simplification_embedding import *
 import subprocess
@@ -8,17 +12,19 @@ import textwrap
 import datetime 
 from scipy.io import savemat, loadmat
 
-
 def incipit():
     print("""
-         _       __    _   __________ 
-        / \     |   \ | | |___   ____|
-       / _ \    | |\ \| |     | |     
-      / /_\ \   | | \   |     | |       
-     /  ___  \  | |  \  |     | |     ____|^-^|  ____|^-^|          ____|^-^|
-    /_/     \_\ |_|   \_|     |_|     /\ /\      /\ /\              /\ /\ 
+      
+    De Novo Ant - Assembly
+     ______     __    _       _                    _     
+    |  __  \   |   \ | |     / \                  / \     
+    | |  |  |  | |\ \| |    / _ \     _____      / _ \    
+    | |  |  |  | | \   |   / /_\ \   |_____|    / /_\ \   
+    | |__|  |  | |  \  |  /  ___  \            /  ___  \       ____|^-^|  ____|^-^|          ____|^-^|
+    | ____ /   |_|   \_| /_/     \_\          /_/     \_\      /\ /\      /\ /\              /\ /\ 
+    
+    Author: Filippo A. Mirolo, 2024     
 
-    Author: Filippo A. Mirolo, 2024
     """)
     return None
 
@@ -177,22 +183,6 @@ if __name__ == "__main__":
 
     # TODO list:
     #       Final_reconstructor
-    #       Simplification
+    #       Semplification
     #       Output writing
-    #       Tuning
 
-
-
-# Traceback (most recent call last):
-#   File "C:\Users\filoa\Desktop\Programming_trials\Assembler\Main\ants_assembly.py", line 163, in <module>
-#     main()
-#   File "C:\Users\filoa\Desktop\Programming_trials\Assembler\Main\ants_assembly.py", line 151, in main
-#     final_recons = final_consensus(best_ACS, reads, positions = graph, max_coverage = cov, length = args.ipothetical_length)
-#                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#   File "C:\Users\filoa\Desktop\Programming_trials\Assembler\Main\lib\colony.py", line 325, in final_consensus
-#     if cons_matrix.shape[1] < cum_dif + len(reads[j])*2:
-#                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#   File "C:\Users\filoa\AppData\Local\Programs\Python\Python311\Lib\site-packages\numpy\lib\function_base.py", line 5618, in append
-#     return concatenate((arr, values), axis=axis)
-#            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# ValueError: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 0, the array at index 0 has size 10 and the array at index 1 has size 
