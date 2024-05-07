@@ -1,4 +1,5 @@
 from Bio import SeqIO
+import datetime
 import os
 import numpy as np
 import random
@@ -7,6 +8,10 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 import collections
 from numba import jit, prange
+
+
+from Bio import pairwise2
+from Bio import Seq
 
 def extracting_sequence(input_path:str, limit = 5000, format="fasta")->str:
 
@@ -64,16 +69,18 @@ def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 
             for j in range(i, len_sequence + 1):
                 y[j] += 1
 
-    print(f"There are {y.count(0)} bases that have 0 coverage.")
-
+    print(f"[{datetime.datetime.now()}]: There are {y.count(0)} bases that have 0 coverage.")
 
     if verbose:
+        if not os.path.exists(res_path):
+            os.makedirs(res_path)
+        save_path = res_path + "/coverage.png"
 
         plt.plot(y)
         plt.xlabel("Position")
         plt.ylabel("Coverage")
         plt.title("Coverage Plot")
-        plt.savefig(res_path)
+        plt.savefig(save_path)
 
     return reads
 
@@ -104,12 +111,13 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mis
     This function return only the BEST alignment.
 
     seq_one, seq_two = input sequences already trasformed in integers by ord function
+
     match, mismatch = integer value for the alignment
 
     Note: the mismatch should be negative
     Output: A tuple with the alignment score, a number that resamble the shift of the alignemnt, and a boolean which indicates if the order
         of the input has been inverted or not. This last element is essential to retrive the order, so which of the two will be place before the other one.
-    Ex output: (12.0, 34, True)
+    Ex output: (12.0, 34, True) -> which are in order score of the alignment, shift and boolean for retriving the order
     """
 
     # Initialization of outputs, the output is a tuple that contains: score of the alignment, a number indicating how the two reads align
@@ -284,7 +292,7 @@ def eval_nonzeros(graph:np.ndarray)-> int:
     return cnt
 
 
-def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16, verbose:bool = False) ->str:
+def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16) ->np.ndarray:
     """This function create a matrix and write down the numbers resembling the path found by the ants algorithm
     """
     #Diff is included
@@ -340,13 +348,16 @@ def __re_build__(cons_matrix:np.ndarray)->str:
     
     dictionary = "ATCG"
     cons_seq = ""
-    for i in range(0, len(cons_matrix)):
+    for i in range(0, cons_matrix.shape[1]):
         base = [x for x in cons_matrix[:,i] if x > 0]
         if base == []:
             return cons_seq
         ind = []
+        tot_bases = 0
         for num in [ord(c) for c in dictionary]:
-            ind.append(base.count(num))
+            occur = base.count(num)
+            ind.append(occur)
+            tot_bases += occur
         more_frequent = ind.index(max(ind))
         # TODO stats
         cons_seq += dictionary[more_frequent]
@@ -360,7 +371,7 @@ def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int)-> str:
     step = int(len(consensus_matrix)/cpus)
     cnt = 0
     partials = []
-    for i in range(step, len(consensus_matrix) + step, step):
+    for i in range(step, len(consensus_matrix), step):
         partials.append((cnt,i))
         cnt += i
     sub_parts = [consensus_matrix[:,i:j] for i,j in partials]
@@ -370,46 +381,70 @@ def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int)-> str:
     return "".join(results)
 
 
-def out_files(path_out:str ,reads:list, candidate:list, matrix:list):
+# TODO check
+def efficiency(reference:str, recostructed_sequence:str)-> int:
+    al = __np_align_func__(seq_one=reference, seq_two=recostructed_sequence)
+
+    num_epoch = min(len(reference), len(recostructed_sequence))
+
+    cnt = 0
+    if al[2]:
+        if al[1] > 0:
+            for i in range(0, num_epoch-al[1]):
+                if recostructed_sequence[i+ al[1]] == reference[i]:
+                    cnt += 1
+            # recostructed_sequence[al[1]:] upstream
+        else:
+            dif = abs(al[1])
+            for i in range(0, num_epoch- dif):
+                if reference[i + dif] == recostructed_sequence[i]:
+                    cnt += 1
+    else:
+        if al[1] > 0:
+            for i in range(0, num_epoch- al[1]):
+                if reference[i + al[1]] == recostructed_sequence[i]:
+                    cnt += 1
+        else:
+            dif = abs(al[1])
+            for i in range(0, num_epoch - dif):
+                if recostructed_sequence[i + dif] == reference[i]:
+                    cnt += 1
+    
+    return cnt/len(reference)
+
+
+def out_files(ref: str, reconstructed_seq: str):
     """Files: fasta with the assembly sequence, variants tsf and stats file.
     Txt file for training
     """
-    
-    # Final results and final consensus sequence
-    c = [(i.element[0], i.element[1]) for i in candidate]
-    d = final_consensus(c, reads, length=5000, positions = matrix)
 
-    al = function()
+    final_alignment = pairwise2.align.localms(Seq(reconstructed_seq), Seq(ref), 3,-1,-3,-2)[0]
 
-    # Writing the results:
-    ll = []
-    ll.append("Thr first line is the reconstructed seq, while the second is the real sequence:\n")
-    cnt=0
-    for i in range(50,len(al[0]),50):
-        ll.append(str(al[0][cnt:i]))
-        ll.append("\n")
-        ll.append(str(al[1][cnt:i]))
-        ll.append("\n\n")
-        cnt += 50
+    with open("assembly_results", "w") as results_file:
+        results_to_write = ["Reference sequence\n", ref, "\n", "\n","Sequence reconstructed by ACO assembler:\n", reconstructed_seq, "\n", "\n",
+                        "Length of the reconstructed sequence:\n", str(len(reconstructed_seq)), "\n", "\n", "Score of the alignment:\n", str(final_alignment[2]), "\n", "\n"]
+        results_file.writelines(results_to_write)
+        local_ref = final_alignment[1]                                                                                          # the ref sequence, as in the local alignment
+        local_reconstructed = final_alignment[0]                                                                                # the reconstructed sequence, as in the local alignment
+        splitted_local_ref = [local_ref[i:i + 100] for i in range(0, len(local_ref), 100)]                                      # the first, split every 100pb
+        splitted_local_reconstructed = [local_reconstructed[i:i + 100] for i in range(0, len(local_reconstructed), 100)]        # the second, split every 100bp
 
-    ll.append("\n")
-    ll.append("Score of the allignment after the reconstruction:\n")
-    ll.append(str(al[2]))
-    ll.append("\nThe percentage of macht in the allignment is:")
-    ll.append("\n")
+        mism_counter = 0
+        for i in range(len(local_reconstructed)):                                                                               # small script to count number of matches
+            if local_reconstructed[i] == local_ref[i]:
+                mism_counter = mism_counter + 1
+        perc_of_matches = (mism_counter / len(local_ref))*100
+        results_file.writelines(["Percentage of matches:\n", str(perc_of_matches), "\n", "\n"])
 
-    cnt = 0
-    for i in range(len(al[0])):
-        if al[0][i] == al[1][i]:
-            cnt += 1
-    ll.append(str(cnt/len(seq))) 
-
-    if not os.path.exists(path_out):
-        os.makedirs
-
-    new_file = open(path_out, "w")
-    new_file.writelines(ll)
-    new_file.close()
-
-    return None
+        results_file.writelines (["Local alignment:\n", "\n"])                                                                  # small script to print decently the local alignment
+        for i in range(len(splitted_local_ref)):
+            results_file.write("reference")
+            results_file.write("\n")
+            results_file.write(splitted_local_ref[i])
+            results_file.write("\n")
+            results_file.write(splitted_local_reconstructed[i])
+            results_file.write("\n")
+            results_file.write("reconstructed")
+            results_file.write("\n")
+            results_file.write("\n")
 

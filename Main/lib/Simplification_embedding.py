@@ -1,8 +1,15 @@
 import datetime
 from joblib import Parallel, delayed
-import grape
 from numba import jit
 import numpy as np
+
+def eval_nonzeros(graph:np.ndarray)-> int:
+
+    cnt = 0
+    for i in range(len(graph)):
+        cnt += np.count_nonzero(graph[i])
+
+    return cnt
 
 @jit(nopython = True)
 def __prepare_simpl_intup__(matrix:np.ndarray)->list:
@@ -83,3 +90,4 @@ def cluster_link_mantainance():
     """The links between cluster represent the order of the contigs or possible high order alignments
     """    
     raise NotImplemented
+

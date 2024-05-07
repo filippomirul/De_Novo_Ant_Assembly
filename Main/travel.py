@@ -43,7 +43,7 @@ def main():
 
     # print(loadmat(args.input)["data"])
 
-    problem = Assembly_problem(matrix = loadmat(args.input)["data"], approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
+    problem = Assembly_problem(matrix = loadmat(args.input)["data_semplified"], approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
 
     print(f"[{datetime.datetime.now()}]: Assembly problem has been asserted!")
 
@@ -64,7 +64,7 @@ def main():
                         mp_evaluator = problem.evaluator, 
                         bounder = problem.bounder,
                         maximize = problem.maximize,
-                        mp_nprocs = args.cpus_cores,
+                        # mp_nprocs = args.cpus_cores,
                         pop_size = args.population_size,
                         max_generations = args.max_generation,
                         evaporation_rate = args.evaporation_rate,

@@ -1,6 +1,4 @@
 from itertools import permutations
-import os
-from joblib import Parallel, delayed
 from math import modf
 from inspyred import swarm
 from inspyred import ec

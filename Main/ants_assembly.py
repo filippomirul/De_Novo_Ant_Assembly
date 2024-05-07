@@ -24,7 +24,7 @@ def incipit():
 
 def main():
 
-    print(f"[{datetime.datetime.now()}]")
+    print(f"[{datetime.datetime.now()}]: Benvenidos!!")
 
     incipit()
 
@@ -39,7 +39,7 @@ def main():
     ## Real-Program
 
     parser.add_argument("-i", "--input", type = str, help = "The input must be a fasta or fastq file", nargs="+")
-    parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "./standard_output")
+    parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "standard_output")
 
 
     # These 3 are useless for now
@@ -53,18 +53,20 @@ def main():
                          help="Internal parameter of the ant colony system")
     parser.add_argument("-r", "--learning_rate", type = float, default = 0.4,
                         help = "Internal parameter for the ant colony system")
-    parser.add_argument("-v", "--verbose", type = bool, default = False,
+    parser.add_argument("-v", "--verbose", type = bool, default = True,
                         help = "Prints and return more information on how the process is developing")
     parser.add_argument("-cpus", "--cpu_cores", type = int,
                         help = "Number of cpu to use; default = 2", default = 2)
     parser.add_argument("-g", "--max_generation", default = 10, help = "Number of iterations/generatios of the ant colony algorithm")
     parser.add_argument("-L", "--ipothetical_length", default = 10000,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
-
+    parser.add_argument("--ester_egg", type=bool, default=False)
     args = parser.parse_args()
 
 
     current_path = os.getcwd()
+    current_path = "/".join(current_path.split("\\"))
+    # print(current_path)
 
     data_out_path = current_path + "/Data"
     plots_path = current_path + "Results"
@@ -76,14 +78,15 @@ def main():
     # Reads simulation
 
     if args.test == "test":
-        args.input = "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna"
+        args.input = "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna"
         reads_length = 200
         coverage = 8
 
         sequence = extracting_sequence(args.input, limit = args.ipothetical_length)
         print(f"[{datetime.datetime.now()}]: Lenght of the sequence is : {len(sequence)}")
 
-        reads = custom_reads(seq = sequence, coverage = coverage, length_reads = reads_length)
+        reads = custom_reads(seq = sequence, coverage = coverage, length_reads = reads_length,
+                              res_path=args.output_directory, verbose=args.verbose)
     
     else:
 
@@ -105,25 +108,20 @@ def main():
     num_links = eval_nonzeros(graph)/2
     print(f"[{datetime.datetime.now()}]: Finished the building of the data structure. Graph has {num_links} edges")
 
-    # Semplifing the OCL
+    # print(graph_path)
 
-    print(f"[{datetime.datetime.now()}]: Starting with the simplification of the graph")
-
-    graph = graph_semplification(graph=graph, cores = args.cpu_cores)
-    num_links = eval_nonzeros(graph)/2
-
-    print(f"[{datetime.datetime.now()}]: Finished the reduction of the data structure. Graph has {num_links} edges")
-    print(f"[{datetime.datetime.now()}]: The problem dimension is {len(graph)}x{len(graph)}")
-
-    # print(graph)
     data = {"data":graph}
     savemat(graph_path, mdict = data, do_compression = False, appendmat=True)
 
-    # Here goes the travel scipt    
+    command_shell_simpl = f"python simplification.py -i {graph_path}"
+
+    subprocess.run(shlex.split(command_shell_simpl), check=True)
+
+    graph_data_sempl= data_out_path + "/graph_sempl_metadata.mat"
 
     if args.test == "test":
 
-        command_shell_test = f"python travel.py -i {graph_path}"
+        command_shell_test = f"python travel.py -i {graph_data_sempl}"
 
         # print(shlex.split(command_shell_test))
 
@@ -156,6 +154,19 @@ def main():
 
     final_recons = join_consensus_sequence(consensus_matrix=final_recons, cpus=args.cpu_cores)
 
+    if args.test:
+
+        eff = efficiency(reference=sequence, recostructed_sequence=final_recons)
+
+        print(f"[{datetime.datetime.now()}]: The efficierncy in recostrcting the sequernce is: {eff}%")
+
+        
+        out_files(ref = sequence, reconstructed_seq=final_recons)
+        
+        print(f"[{datetime.datetime.now()}]: Writing the output files...")
+
+
+
     # This last part will be implemented, will contain the output writing and addition information regarding the
     # results of all the processes in between 
 
@@ -169,3 +180,19 @@ if __name__ == "__main__":
     #       Simplification
     #       Output writing
     #       Tuning
+
+
+
+# Traceback (most recent call last):
+#   File "C:\Users\filoa\Desktop\Programming_trials\Assembler\Main\ants_assembly.py", line 163, in <module>
+#     main()
+#   File "C:\Users\filoa\Desktop\Programming_trials\Assembler\Main\ants_assembly.py", line 151, in main
+#     final_recons = final_consensus(best_ACS, reads, positions = graph, max_coverage = cov, length = args.ipothetical_length)
+#                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#   File "C:\Users\filoa\Desktop\Programming_trials\Assembler\Main\lib\colony.py", line 325, in final_consensus
+#     if cons_matrix.shape[1] < cum_dif + len(reads[j])*2:
+#                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#   File "C:\Users\filoa\AppData\Local\Programs\Python\Python311\Lib\site-packages\numpy\lib\function_base.py", line 5618, in append
+#     return concatenate((arr, values), axis=axis)
+#            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ValueError: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 0, the array at index 0 has size 10 and the array at index 1 has size 
