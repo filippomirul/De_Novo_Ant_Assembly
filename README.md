@@ -1,4 +1,4 @@
-# DNA-A (De Nove Ant Assembly)
+# DNA-A (De Novo Ant Assembly)
 
 ## Requirement
 
