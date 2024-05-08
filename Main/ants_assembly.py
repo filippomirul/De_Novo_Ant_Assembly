@@ -44,7 +44,7 @@ def main():
     ## Real-Program
 
     parser.add_argument("-i", "--input", type = str, help = "The input must be a fasta or fastq file", nargs="+")
-    parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "standard_output")
+    parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "/standard_output")
 
 
     # These 3 are useless for now
@@ -72,6 +72,11 @@ def main():
     current_path = os.getcwd()
     current_path = "/".join(current_path.split("\\"))
     # print(current_path)
+
+    out_dir = current_path + args.output_directory
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
 
     data_out_path = current_path + "/Data"
 
@@ -176,7 +181,7 @@ def main():
         # print(f"[{datetime.datetime.now()}]: The efficierncy in recostrcting the sequernce is: {eff}%")
 
         
-        out_files(ref = sequence, reconstructed_seq=final_recons)
+        out_files(ref = sequence, reconstructed_seq=final_recons, out_path=out_dir)
         
         print(f"[{datetime.datetime.now()}]: Writing the output files...")
 

@@ -442,16 +442,16 @@ def efficiency(reference:str, recostructed_sequence:str, cpus = 2)-> int:
     return cnt/len(reference)
 
 
-def out_files(ref: str, reconstructed_seq: str):
+def out_files(ref: str, reconstructed_seq: str, out_path:str):
     """Files: fasta with the assembly sequence, variants tsf and stats file.
     Txt file for training
     """
 
     final_alignment = pairwise2.align.localms(reconstructed_seq, ref, 3,-1,-30,-30)[0]
 
+    out_path = out_path + "/assembly_results.txt"
 
-
-    with open("assembly_results", "w") as results_file:
+    with open(out_path, "w") as results_file:
         results_to_write = ["Reference sequence\n", ref, "\n", "\n","Sequence reconstructed by ACO assembler:\n", reconstructed_seq, "\n", "\n",
                         "Length of the reconstructed sequence:\n", str(len(reconstructed_seq)), "\n", "\n", "Score of the alignment:\n", str(final_alignment[2]), "\n", "\n"]
         results_file.writelines(results_to_write)
