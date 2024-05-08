@@ -7,21 +7,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 import collections
 from numba import jit, prange
-from Bio import SeqIO, pairwise2, Seq
-
-def extracting_sequence(input_path:str, limit = 5000, format="fasta")->str:
-
-    #Extracting the sequence from the fasta and selecting the lenght:
-    seq = ""
-    len_seq = 0
-    for seq_record in SeqIO.parse(input_path, format="fasta"):
-        seq += seq_record.seq.upper()
-        len_seq += len(seq_record)
-        if len_seq > limit:
-            continue
-    seq = seq[:limit]
-
-    return str(seq)
+from Bio import pairwise2
 
 
 def __de_code__(read:np.ndarray)->str:
@@ -32,7 +18,7 @@ def __uni_code__(read:str)->np.ndarray:
     return np.array([ord(c) for c in read])
 
 
-def parallel_coding(reads:list, number_cpus:int, uni_coding=True):
+def parallel_coding(reads:list, number_cpus = 1, uni_coding=True):
     if uni_coding:
         reads = Parallel(n_jobs=number_cpus)(delayed(__uni_code__)(i)for i in reads)
         return reads
@@ -100,7 +86,7 @@ def __np_score__(align_list: np.ndarray, zeros = True)-> int:
 
 
 @jit(nopython=True)
-def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mismatch:int = -2) -> tuple:
+def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 5, mismatch:int = -3) -> tuple:
     """This function is a replacement for the align function pirwise2.align.localms of the Bio library. This substitution has the aim of tackling the computational time of the
     eval_alignment function. In order to decrease the time, there was the need to create a compilable function with numba, which was also capable of being parallelised.
     As you can clearly see the function takes in input only the match and mismatch, because in this usage the gap introduction is useless (for the moment).
@@ -169,7 +155,7 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mis
 
             cnt = 0
             for j in align_forw, align_back:
-                part_score = __np_score__(j)*match + __np_score__(j, zeros=False)*mismatch
+                part_score = __np_score__(j) * match + __np_score__(j, zeros=False) * mismatch
 
                 
                 if part_score >= score:
@@ -184,7 +170,7 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mis
             i += 1
 
             align_forw = seq_one[i-min_length_seq+1:(i+1)] - seq_two[-(i+1):]
-            part_score = __np_score__(j)*match + __np_score__(j, zeros=False)*mismatch
+            part_score = __np_score__(j) * match + __np_score__(j, zeros=False) * mismatch
 
             if part_score >= score:
                 score = part_score
@@ -288,55 +274,61 @@ def eval_nonzeros(graph:np.ndarray)-> int:
     return cnt
 
 
-def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16) ->np.ndarray:
+def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16) -> np.ndarray:
     """This function create a matrix and write down the numbers resembling the path found by the ants algorithm
     """
     #Diff is included
 
     cons_matrix = np.zeros((max_coverage, length))
-    leng = len(cons_matrix[0])
     cum_dif = 0
     adding = np.zeros((max_coverage, int(length/100)))
 
     for i,j in path:
         # Here i,j represent the edge of the graph, to retrive not the score but the alignment
         # the function needs the opposite position where there are these informations matrix[j][i]
-
+        
         num = str(positions[j][i]).split(".")
         dif = int(num[0])
+        
 
         if cons_matrix[0,0] == 0:
             # This first part is for starting the writing of the matrix
-            
+            # print(len(reads[i]))
             for pos in range(0, len(reads[i])):
-                if cons_matrix[0, pos] != 0:
-                    cons_matrix = np.append(cons_matrix, adding, 1)
                 cons_matrix[0, pos] = reads[i][pos]
+                
             cum_dif += dif
             temp = 0
-            for p in range(cum_dif + 1, cum_dif + len(reads[j]) + 1): # added +1 in last mod
-                if cons_matrix[1,pos] != 0:
-                    cons_matrix = np.append(cons_matrix, adding, 1)
+
+            for p in range(cum_dif , cum_dif + len(reads[j])): 
+                # if cons_matrix[1,pos] > 0:
+                #     cons_matrix = np.append(cons_matrix, adding, 1)
                 cons_matrix[1, p] = reads[j][temp]
                 temp += 1
 
         else:
+            
             # There is a check if the initialized matrix is big enough to contain all tha bases, columns wise
             if cons_matrix.shape[1] < (cum_dif + len(reads[j])*2):
+                # print(f"mat_shape:{cons_matrix.shape[1]}, tot: {cum_dif + len(reads[j])*2}, cum_dif:{cum_dif}, len_reads: {len(reads[j])}")
                 cons_matrix = np.append(cons_matrix, np.zeros((cons_matrix.shape[0], int(length/100))), 1)
+                # print("Here")
             else:
                 cum_dif += dif
                 temp = 0
-                for pos in range(cum_dif + 1, cum_dif + len(reads[j]) + 1): # added +1 in last mod
+                for pos in range(cum_dif, cum_dif + len(reads[j])): 
                     row = 0
-                    while cons_matrix[row, pos] >= 1:
+                    while cons_matrix[row, pos] > 0:
                         row += 1
                     # There is a check if the initialized matrix is big enough to contain all tha bases, row wise
                         if row == cons_matrix.shape[0]:
                             cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1])) ,0)
+                            # print("Here")
                     cons_matrix[row, pos] = reads[j][temp]
+                    # print(f"Position: {(row, pos)} is {reads[j][temp]}")
+                    # print(f"So {cons_matrix[row, pos]}")
                     temp +=1
-
+    # print(f"cum_dif: {cum_dif}")
     return cons_matrix
 
 
@@ -362,19 +354,23 @@ def __re_build__(cons_matrix:np.ndarray)->str:
 
 
 def join_consensus_sequence(consensus_matrix:np.ndarray, cpus:int)-> str:
-    "This functio is just to implement the use of multiples core for recostructing the final sequence."
+    "This function is just to implement the use of multiples core for recostructing the final sequence."
 
-    step = int(len(consensus_matrix)/cpus)
+    step = int(consensus_matrix.shape[1]/cpus)
     cnt = 0
     partials = []
-    for i in range(step, len(consensus_matrix), step):
-        partials.append((cnt,i))
-        cnt += i
-    sub_parts = [consensus_matrix[:,i:j] for i,j in partials]
-    
-    results = Parallel(n_jobs=cpus)(delayed(__re_build__)(i) for i in sub_parts)
+    for i in range(step, consensus_matrix.shape[1] + step, step):
 
-    return "".join(results)
+        partials.append((cnt, i))
+        cnt += step
+        if cnt == step:
+            cnt += 1
+
+    sub_parts = [consensus_matrix[:,i:j] for i,j in partials]
+
+    res = Parallel(n_jobs=cpus)(delayed(__re_build__)(i) for i in sub_parts)
+    print(res)
+    return "".join(res)
 
 
 def __printing_alignment__(seq_1:str, seq_2:str)->str:
@@ -451,7 +447,7 @@ def out_files(ref: str, reconstructed_seq: str):
     Txt file for training
     """
 
-    final_alignment = pairwise2.align.localms(Seq(reconstructed_seq), Seq(ref), 3,-1,-3,-2)[0]
+    final_alignment = pairwise2.align.localms(reconstructed_seq, ref, 3,-1,-30,-30)[0]
 
 
 

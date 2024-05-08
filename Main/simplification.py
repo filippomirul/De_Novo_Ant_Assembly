@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 import os
 import argparse
 import textwrap
 import datetime
 from lib.Simplification_embedding import *
 from scipy.io import savemat, loadmat
-
 
 def main():
 
@@ -38,7 +36,9 @@ def main():
     num_links = eval_nonzeros(graph)/2
 
     print(f"[{datetime.datetime.now()}]: Finished the reduction of the data structure. Graph has {num_links} edges")
-    print(f"[{datetime.datetime.now()}]: The problem dimension is {len(graph)}x{len(graph)}")
+    print(f"[{datetime.datetime.now()}]: The problem dimension is {len(graph)} x {len(graph)}")
+
+    # print(f"sempl:{graph[0]}")
 
     # print(graph)
     data = {"data_semplified":graph}

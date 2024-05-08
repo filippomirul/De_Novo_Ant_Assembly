@@ -47,7 +47,10 @@ def main():
 
     # print(loadmat(args.input)["data"])
 
-    problem = Assembly_problem(matrix = loadmat(args.input)["data_semplified"], approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
+    matrix_sempl = loadmat(args.input)["data_semplified"]
+    # print(f"matrix_sempl: {matrix_sempl}")
+
+    problem = Assembly_problem(matrix = matrix_sempl, approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
 
     print(f"[{datetime.datetime.now()}]: Assembly problem has been asserted!")
 

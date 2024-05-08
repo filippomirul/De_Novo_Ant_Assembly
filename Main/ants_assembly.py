@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 from lib.colony import *
-from lib.Simplification_embedding import *
+from lib.seq_dealing import *
 import subprocess
 import os
 import shlex
@@ -16,12 +15,12 @@ def incipit():
     print("""
       
     De Novo Ant - Assembly
-     ______     __    _       _                    _     
-    |  __  \   |   \ | |     / \                  / \     
-    | |  |  |  | |\ \| |    / _ \     _____      / _ \    
-    | |  |  |  | | \   |   / /_\ \   |_____|    / /_\ \   
-    | |__|  |  | |  \  |  /  ___  \            /  ___  \       ____|^-^|  ____|^-^|          ____|^-^|
-    | ____ /   |_|   \_| /_/     \_\          /_/     \_\      /\ /\      /\ /\              /\ /\ 
+     ______     __    _       _                     _     
+    |  __  \   |   \ | |     / \                   / \     
+    | |  |  |  | |\ \| |    / _ \      _____      / _ \    
+    | |  |  |  | | \   |   / /_\ \    |_____|    / /_\ \   
+    | |__|  |  | |  \  |  /  ___  \             /  ___  \       ____|^-^|  ____|^-^|          ____|^-^|
+    | ____ /   |_|   \_| /_/     \_\           /_/     \_\      /\ /\      /\ /\              /\ /\ 
     
     Author: Filippo A. Mirolo, 2024     
 
@@ -53,7 +52,7 @@ def main():
     # parser.add_argument("-hifi", "--Pacbio_long_reads", type = str, help = "Hifi Pacbio reads")
     parser.add_argument("--test", help = "This is for testing", nargs="?", const="test", type=str)
     
-    parser.add_argument("-p", "--population_size", type = int, default = 80,
+    parser.add_argument("-p", "--population_size", type = int, default = 150,
                         help = "")
     parser.add_argument("-e", "--evaporation_rate", type = float, default = 0.2,
                          help="Internal parameter of the ant colony system")
@@ -63,7 +62,7 @@ def main():
                         help = "Prints and return more information on how the process is developing")
     parser.add_argument("-cpus", "--cpu_cores", type = int,
                         help = "Number of cpu to use; default = 2", default = 2)
-    parser.add_argument("-g", "--max_generation", default = 10, help = "Number of iterations/generatios of the ant colony algorithm")
+    parser.add_argument("-g", "--max_generation", default = 8, help = "Number of iterations/generatios of the ant colony algorithm")
     parser.add_argument("-L", "--ipothetical_length", default = 10000,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
     parser.add_argument("--ester_egg", type=bool, default=False)
@@ -75,10 +74,10 @@ def main():
     # print(current_path)
 
     data_out_path = current_path + "/Data"
-    plots_path = current_path + "Results"
 
     graph_path = data_out_path + "/graph_metadata.mat"
     final_array_path = data_out_path + "/final_array.mat"
+    reads_path = data_out_path + "/reads.mat"
 
 
     # Reads simulation
@@ -86,9 +85,9 @@ def main():
     if args.test == "test":
         args.input = "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna"
         reads_length = 200
-        coverage = 8
+        coverage = 12
 
-        sequence = extracting_sequence(args.input, limit = args.ipothetical_length)
+        sequence = extracting_sequence_from_data(args.input, limit = args.ipothetical_length)
         print(f"[{datetime.datetime.now()}]: Lenght of the sequence is : {len(sequence)}")
 
         reads = custom_reads(seq = sequence, coverage = coverage, length_reads = reads_length,
@@ -104,12 +103,20 @@ def main():
 
     reads = parallel_coding(reads=reads, number_cpus=args.cpu_cores)
 
+    # print(f"reads: {reads[0]}")
+
+    rr = {"reads":reads}
+    savemat(reads_path, mdict = rr, do_compression = False, appendmat=True)
+
+
     print(f"[{datetime.datetime.now()}]: Reads has been successfully converted!")
 
     # Building the Overlap-Layout Consensus (OLC) graph
 
     print(f"[{datetime.datetime.now()}]: Building the Overlap-Layout Consensus (OLC) graph")
     graph = eval_allign_np(reads = reads)
+
+    # print(f"graph: {graph[0]}")
     
     num_links = eval_nonzeros(graph)/2
     print(f"[{datetime.datetime.now()}]: Finished the building of the data structure. Graph has {num_links} edges")
@@ -150,6 +157,8 @@ def main():
 
     best_ACS = loadmat(final_array_path)["Best_ACS"]
 
+    print(f"best_ACS: {best_ACS}")
+
     cov = coverage + int(coverage/10)
 
     print(f"[{datetime.datetime.now()}]: Building up the consesus matrix")
@@ -162,9 +171,9 @@ def main():
 
     if args.test:
 
-        eff = efficiency(reference=sequence, recostructed_sequence=final_recons)
+        # eff = efficiency(reference=sequence, recostructed_sequence=final_recons)
 
-        print(f"[{datetime.datetime.now()}]: The efficierncy in recostrcting the sequernce is: {eff}%")
+        # print(f"[{datetime.datetime.now()}]: The efficierncy in recostrcting the sequernce is: {eff}%")
 
         
         out_files(ref = sequence, reconstructed_seq=final_recons)
@@ -172,9 +181,6 @@ def main():
         print(f"[{datetime.datetime.now()}]: Writing the output files...")
 
 
-
-    # This last part will be implemented, will contain the output writing and addition information regarding the
-    # results of all the processes in between 
 
     return print(final_recons)
 

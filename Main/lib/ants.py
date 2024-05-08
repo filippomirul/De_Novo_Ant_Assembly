@@ -143,4 +143,29 @@ class Assembly_problem():
             fitness.append(score)
 
         return fitness
+    
+    # def evaluator(self, candidates, args):
+    #         """Return the fitness values for the given candidates."""
+    #         #P rappresenta la lunghezza stimata del nostro dna
+    #         #Pm rappresenta P-0.04P
+    #         #PM rappresenta P+0.04P
+    #         #sigma = peso della penalità, che aumenta all'aumentare della distanza dal valore di lunghezza dal limite superiore o inferiore.
+    #         fitness = []
+    #         Pm = self.length - 0.04*self.length
+    #         PM = self.length + 0.04*self.length
+    #         for candidate in candidates:
+    #                 total = 0
+    #                 lencandidate = __consensus_sequence_partial__(path = candidate, positions=self.weights, reads_len=self.reads_len)
+    #                 for c in candidate:
+    #                     total += self.weights[c.element[0]][c.element[1]]
+    #                 if lencandidate >= Pm:
+    #                     if lencandidate <= PM :
+    #                             fitness.append(total) 
+    #                     else:
+    #                             total=total-self.sigma*(lencandidate-PM)
+    #                             fitness.append(total)
+    #                 else:
+    #                         total=total-self.sigma*(Pm-lencandidate)
+    #                         fitness.append(total)
+    #         return fitness
 

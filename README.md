@@ -9,8 +9,7 @@
 - Matplotlib
 - Inspyred
 - Sklearn
-- Karateclub
-- Networkx
+- Biopython
 
 
 ## Descioption
