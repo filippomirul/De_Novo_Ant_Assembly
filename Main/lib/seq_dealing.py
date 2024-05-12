@@ -1,6 +1,7 @@
 from Bio import SeqIO
 import matplotlib.pyplot as plt
 import datetime
+import gzip
 
 def extracting_sequence_from_data(input_path:str, limit = 5000)->str:
 
@@ -16,20 +17,33 @@ def extracting_sequence_from_data(input_path:str, limit = 5000)->str:
 
     return str(seq)
 
-def extract_reads(input_path:str)-> list:
+def extract_reads(input_path:str, zip = False)-> list:
+    
+    if input_path.split(".")[-1] == "gz":
+        zip = True
 
-    reads = []
-    for seq in SeqIO.parse(input_path, format="fastq"):
-        reads.append(seq.seq.upper())
+    if zip:
+        with gzip.open(input_path, "rt") as file:
 
-    phred_score = []
-    cnt = 0
+            reads = []
+            phred_score = []
 
-    for seq_record in SeqIO.parse(input_path, "qual"):
-        phred_score.append((cnt, seq_record.letter_annotations["phred_quality"]))
-        cnt +=1
+            for seq in SeqIO.parse(file, format="fastq"):
+                reads.append(seq.seq.upper())
+                phred_score.append(seq.letter_annotations["phred_quality"])
 
-    return reads, phred_score
+    else:
+        with open(input_path, "r") as file:
+
+            reads = []
+            phred_score = []
+
+            for seq in SeqIO.parse(file, format="fastq"):
+                reads.append(seq.seq.upper())
+                phred_score.append(seq.letter_annotations["phred_quality"])
+
+
+    return (reads, phred_score)
 
 def extract_ont(file:str) ->list:
     raise NotImplemented

@@ -11,6 +11,7 @@ import textwrap
 import datetime 
 from scipy.io import savemat, loadmat
 
+
 def incipit():
     print("""
       
@@ -65,8 +66,11 @@ def main():
     parser.add_argument("-g", "--max_generation", default = 8, help = "Number of iterations/generatios of the ant colony algorithm")
     parser.add_argument("-L", "--ipothetical_length", default = 10000,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
-    parser.add_argument("--ester_egg", type=bool, default=False)
+    parser.add_argument("--ester_egg", type=int, default=1)
     args = parser.parse_args()
+
+    # print(f"[{datetime.datetime.now()}]: {arg} with value: {args.arg}")
+    print(args)
 
 
     current_path = os.getcwd()
@@ -100,9 +104,21 @@ def main():
     
     else:
 
-        reads = args.input 
-        raise NotImplemented # need to be a way to covert file into list of read
-        # length_reads = mean(args.input)
+        # Problem with the args: ipotetical lenght and reads lenght
+        if len(args.input) > 1:
+
+            r = Parallel(n_jobs=args.cpu_cores)(delayed(extract_reads)(i) for i in args.input)
+
+        else:
+
+            print(f"[{datetime.datetime.now()}]: Accessing input files:")
+
+            phred_score_reads = extract_reads(args.input[0]) 
+            reads = phred_score_reads[0][:int(len(phred_score_reads[0])/args.ester_egg)]
+
+            print(f"[{datetime.datetime.now()}]: {len(reads)} ")
+            phred_score_reads = phred_score_reads[1]
+
 
     print(f"[{datetime.datetime.now()}]: Starting the encoding of the reads")
 
@@ -164,11 +180,9 @@ def main():
 
     print(f"best_ACS: {best_ACS}")
 
-    cov = coverage + int(coverage/10)
-
     print(f"[{datetime.datetime.now()}]: Building up the consesus matrix")
     # TODO check
-    final_recons = final_consensus(best_ACS, reads, positions = graph, max_coverage = cov, length = args.ipothetical_length)
+    final_recons = final_consensus(best_ACS, reads, positions = graph, length = args.ipothetical_length)
 
     print(f"[{datetime.datetime.now()}]: Retriving additional information and statistics")
 
@@ -187,7 +201,7 @@ def main():
 
 
 
-    return print(final_recons)
+    return print(f"The Assembly: {final_recons} \nLength: {len(final_recons)}")
 
 if __name__ == "__main__":
     main()

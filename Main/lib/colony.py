@@ -15,7 +15,7 @@ def __de_code__(read:np.ndarray)->str:
 
 
 def __uni_code__(read:str)->np.ndarray:
-    return np.array([ord(c) for c in read])
+    return np.array([ord(c) for c in read], dtype=np.float32)
 
 
 def parallel_coding(reads:list, number_cpus = 1, uni_coding=True):
@@ -27,7 +27,7 @@ def parallel_coding(reads:list, number_cpus = 1, uni_coding=True):
         return reads
 
 
-def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 5, verbose = False) -> list:
+def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 5, verbose = False, gap =False) -> list:
     """The function splits the sequence in input into reads.
     The splitting is done using random numbers, and the number of reads is given by: (len(seq)/length_read)*coverage.
     """
@@ -35,6 +35,25 @@ def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 
     number_of_reads = int(len_sequence/length_reads) * coverage
     starting_pos = random.sample(range(0, len_sequence - int(length_reads/2) + 1), number_of_reads)
     reads = []
+    print(f"Len starting position: {len(starting_pos)}")
+    if gap:
+        num_of_gap = random.randint(1, 4)
+        # print(f"Number of gap: {num_of_gap}")
+        new_starting_pos = []
+        not_to_keep = []
+
+        for j in range(num_of_gap):
+            rand = random.randint(0, len_sequence - length_reads)
+            # print(f"gap: {rand}")
+            for i in starting_pos:
+                if abs(i - rand) < length_reads:
+                    not_to_keep.append(i)
+        for i in starting_pos:
+            if i not in not_to_keep:
+                new_starting_pos.append(i)
+
+        # print(f"Len new starting position: {len(new_starting_pos)}")
+        starting_pos = new_starting_pos
 
     for num in starting_pos:
         if num+length_reads> len_sequence:
@@ -213,7 +232,7 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     """
     length = len(reads)
     # initialization of the matrices
-    weigth_matrix = np.zeros((length, length))
+    weigth_matrix = np.zeros((length, length), dtype=np.float16)
 
     # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
     # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
@@ -274,14 +293,14 @@ def eval_nonzeros(graph:np.ndarray)-> int:
     return cnt
 
 
-def final_consensus(path:list, reads:list, positions:list, length:int, max_coverage: int = 16) -> np.ndarray:
+def final_consensus(path:list, reads:list, positions:list, length:int = 50000, max_coverage: int = 16) -> np.ndarray:
     """This function create a matrix and write down the numbers resembling the path found by the ants algorithm
     """
     #Diff is included
 
-    cons_matrix = np.zeros((max_coverage, length))
+    cons_matrix = np.zeros((max_coverage, length), dtype=np.float32)
     cum_dif = 0
-    adding = np.zeros((max_coverage, int(length/100)))
+    # adding = np.zeros((max_coverage, int(length/100)), dtype=np.float32)
 
     for i,j in path:
         # Here i,j represent the edge of the graph, to retrive not the score but the alignment
@@ -311,7 +330,7 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
             # There is a check if the initialized matrix is big enough to contain all tha bases, columns wise
             if cons_matrix.shape[1] < (cum_dif + len(reads[j])*2):
                 # print(f"mat_shape:{cons_matrix.shape[1]}, tot: {cum_dif + len(reads[j])*2}, cum_dif:{cum_dif}, len_reads: {len(reads[j])}")
-                cons_matrix = np.append(cons_matrix, np.zeros((cons_matrix.shape[0], int(length/100))), 1)
+                cons_matrix = np.append(cons_matrix, np.zeros((cons_matrix.shape[0], int(length/100)), dtype=np.float32), 1)
                 # print("Here")
             else:
                 cum_dif += dif
@@ -322,7 +341,7 @@ def final_consensus(path:list, reads:list, positions:list, length:int, max_cover
                         row += 1
                     # There is a check if the initialized matrix is big enough to contain all tha bases, row wise
                         if row == cons_matrix.shape[0]:
-                            cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1])) ,0)
+                            cons_matrix = np.append(cons_matrix, np.zeros((2, cons_matrix.shape[1]), dtype=np.float32) ,0)
                             # print("Here")
                     cons_matrix[row, pos] = reads[j][temp]
                     # print(f"Position: {(row, pos)} is {reads[j][temp]}")
