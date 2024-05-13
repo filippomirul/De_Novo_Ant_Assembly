@@ -38,7 +38,7 @@ def main():
     print(f"[{datetime.datetime.now()}]: Finished the reduction of the data structure. Graph has {num_links} edges")
     print(f"[{datetime.datetime.now()}]: The problem dimension is {len(graph)} x {len(graph)}")
 
-    # print(f"sempl:{graph[0]}")
+    print(f"sempl:{graph[0]}")
 
     # print(graph)
     data = {"data_semplified":graph}

@@ -64,14 +64,12 @@ def main():
     parser.add_argument("-cpus", "--cpu_cores", type = int,
                         help = "Number of cpu to use; default = 2", default = 2)
     parser.add_argument("-g", "--max_generation", default = 8, help = "Number of iterations/generatios of the ant colony algorithm")
-    parser.add_argument("-L", "--ipothetical_length", default = 10000,
+    parser.add_argument("-L", "--ipothetical_length", default = 100000,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
-    parser.add_argument("--ester_egg", type=int, default=1)
+
     args = parser.parse_args()
 
-    # print(f"[{datetime.datetime.now()}]: {arg} with value: {args.arg}")
-    print(args)
-
+    # print(args)
 
     current_path = os.getcwd()
     current_path = "/".join(current_path.split("\\"))
@@ -93,14 +91,17 @@ def main():
 
     if args.test == "test":
         args.input = "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna"
-        reads_length = 200
+        reads_length = 2000
         coverage = 12
+        args.verbose = True
 
         sequence = extracting_sequence_from_data(args.input, limit = args.ipothetical_length)
         print(f"[{datetime.datetime.now()}]: Lenght of the sequence is : {len(sequence)}")
 
         reads = custom_reads(seq = sequence, coverage = coverage, length_reads = reads_length,
-                              res_path=args.output_directory, verbose=args.verbose)
+                              res_path=out_dir, verbose=args.verbose)
+        print(f"[{datetime.datetime.now()}]: Number of reads : {len(reads)}")
+
     
     else:
 
@@ -135,7 +136,10 @@ def main():
     # Building the Overlap-Layout Consensus (OLC) graph
 
     print(f"[{datetime.datetime.now()}]: Building the Overlap-Layout Consensus (OLC) graph")
-    graph = eval_allign_np(reads = reads)
+
+    links = Parallel(n_jobs=args.cpu_cores)(delayed(split_align)(i)for i in [(reads,j) for j in range(len(reads))])
+    graph = assemble_matrix(links, len(reads))
+    # graph = eval_allign_np(reads = reads)
 
     # print(f"graph: {graph[0]}")
     
@@ -155,7 +159,7 @@ def main():
 
     if args.test == "test":
 
-        command_shell_test = f"python travel.py -i {graph_data_sempl}"
+        command_shell_test = f"python travel.py -i {graph_data_sempl} --reads_lenght {reads_length} -L {args.ipothetical_length}"
 
         # print(shlex.split(command_shell_test))
 
@@ -178,10 +182,10 @@ def main():
 
     best_ACS = loadmat(final_array_path)["Best_ACS"]
 
-    print(f"best_ACS: {best_ACS}")
+    # print(f"best_ACS: {best_ACS}")
 
     print(f"[{datetime.datetime.now()}]: Building up the consesus matrix")
-    # TODO check
+    
     final_recons = final_consensus(best_ACS, reads, positions = graph, length = args.ipothetical_length)
 
     print(f"[{datetime.datetime.now()}]: Retriving additional information and statistics")
@@ -194,12 +198,9 @@ def main():
 
         # print(f"[{datetime.datetime.now()}]: The efficierncy in recostrcting the sequernce is: {eff}%")
 
+        print(f"[{datetime.datetime.now()}]: Writing the output files...")
         
         out_files(ref = sequence, reconstructed_seq=final_recons, out_path=out_dir)
-        
-        print(f"[{datetime.datetime.now()}]: Writing the output files...")
-
-
 
     return print(f"The Assembly: {final_recons} \nLength: {len(final_recons)}")
 
@@ -207,7 +208,6 @@ if __name__ == "__main__":
     main()
 
     # TODO list:
-    #       Final_reconstructor
     #       Semplification
     #       Output writing
 

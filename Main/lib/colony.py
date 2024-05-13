@@ -35,7 +35,7 @@ def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 
     number_of_reads = int(len_sequence/length_reads) * coverage
     starting_pos = random.sample(range(0, len_sequence - int(length_reads/2) + 1), number_of_reads)
     reads = []
-    print(f"Len starting position: {len(starting_pos)}")
+    # print(f"Len starting position: {len(starting_pos)}")
     if gap:
         num_of_gap = random.randint(1, 4)
         # print(f"Number of gap: {num_of_gap}")
@@ -105,20 +105,19 @@ def __np_score__(align_list: np.ndarray, zeros = True)-> int:
 
 
 @jit(nopython=True)
-def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 5, mismatch:int = -3) -> tuple:
+def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mismatch:int = -2) -> tuple:
     """This function is a replacement for the align function pirwise2.align.localms of the Bio library. This substitution has the aim of tackling the computational time of the
     eval_alignment function. In order to decrease the time, there was the need to create a compilable function with numba, which was also capable of being parallelised.
     As you can clearly see the function takes in input only the match and mismatch, because in this usage the gap introduction is useless (for the moment).
     This function return only the BEST alignment.
 
     seq_one, seq_two = input sequences already trasformed in integers by ord function
-
     match, mismatch = integer value for the alignment
 
     Note: the mismatch should be negative
     Output: A tuple with the alignment score, a number that resamble the shift of the alignemnt, and a boolean which indicates if the order
         of the input has been inverted or not. This last element is essential to retrive the order, so which of the two will be place before the other one.
-    Ex output: (12.0, 34, True) -> which are in order score of the alignment, shift and boolean for retriving the order
+    Ex output: (12.0, 34, True)
     """
 
     # Initialization of outputs, the output is a tuple that contains: score of the alignment, a number indicating how the two reads align
@@ -162,9 +161,11 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 5, mis
                     score = part_score
                     if cnt > 0:
                         # If the diff value is positive the first sequence is upstream
+                        # The index diff is included
                         diff = max_lenght_seq -i -1
                     else:
                         # If the diff value is negative the second sequence if the one upstream
+                        # The index diff is included
                         diff = -(min_length_seq -i -1)
                 cnt += 1
         
@@ -174,7 +175,7 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 5, mis
 
             cnt = 0
             for j in align_forw, align_back:
-                part_score = __np_score__(j) * match + __np_score__(j, zeros=False) * mismatch
+                part_score = __np_score__(j)*match + __np_score__(j, zeros=False)*mismatch
 
                 
                 if part_score >= score:
@@ -189,7 +190,7 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 5, mis
             i += 1
 
             align_forw = seq_one[i-min_length_seq+1:(i+1)] - seq_two[-(i+1):]
-            part_score = __np_score__(j) * match + __np_score__(j, zeros=False) * mismatch
+            part_score = __np_score__(j)*match + __np_score__(j, zeros=False)*mismatch
 
             if part_score >= score:
                 score = part_score
@@ -197,6 +198,47 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 5, mis
 
 
     return (score, diff, switch)
+
+
+@jit(nopython=True)
+def split_align(tuple:tuple):
+    reads = tuple[0]
+    epoch = tuple[1]
+    molt = 100
+    comparison = reads[epoch]
+    out = []
+    for i in range(epoch, len(reads)):
+        alignment = __np_align_func__(reads[i], comparison)
+        if i == epoch:
+            continue
+
+        if alignment[0] > 0:
+            if alignment[2]:
+
+                if alignment[1] > 0:
+                    out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))                
+                else:
+                    out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
+            else:
+                if alignment[1] > 0:
+                    out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
+                
+                else:
+                    out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))
+
+    return out
+
+
+def assemble_matrix(edges: list, num_reads:int)-> np.ndarray:
+
+    weigth_matrix = np.zeros((num_reads, num_reads))
+
+    for epoch in edges:
+        for link in epoch:
+            weigth_matrix[link[0] ,link[1]] = link[2]
+            weigth_matrix[link[1] ,link[0]] = float(f"{0}.{abs(link[3])}1")
+
+    return weigth_matrix
 
 
 def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
@@ -232,7 +274,7 @@ def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
     """
     length = len(reads)
     # initialization of the matrices
-    weigth_matrix = np.zeros((length, length), dtype=np.float16)
+    weigth_matrix = np.zeros((length, length), dtype=np.float32)
 
     # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
     # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.

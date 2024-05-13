@@ -1,16 +1,17 @@
-# DNA-A (De Novo Ant Assembly)
+# DNA-A (De Novo Ant - Assembly)
 
 ## Table of content
 
 - [Requirements](#requirement)
 - [Description](#descrioption)
 - [Usage](#usage)
+- [implementations](#implementations)
 - [Credits](#credits)
 - [License](#licence)
 
 ## Requirement
 
-- Python >= 3.8
+- Python >= 3.9
 - Scipy
 - Numpy
 - Numba
@@ -24,19 +25,21 @@
 
 This algorithm, instead of the usual De Bujin graph used in the majority of similar methods to performe de novo assembly, builds an Overlap-Layout Consensus (OLC) graph starting from the reads given in input. At this data the only input format available is fastq, however the file passed could be, not only deriving from illumina sequencing platform, but also from both nanopore (ONT) and hifiam (Pacbio) platforms.
 
-After this first step, the graph will be simplified eraising those branches and links which retrive poor overlap between the reads. All this part is done in a completly statistical analysis, not taking in consideration the sequences of the reads or the phred score of them.
-To assert the presence of contigs (gaps in the coverage), the algorithm has been implemented with a hierarchical clustering of the remaining weighted edges(embedding of the graph will be implemented to retrive further information and statistical analysis). The clustering is performed in order to divide the problem in smaller one, a consequence of this partition is the increasing efficiency of the ANT colony system downstream.
+After this first step, the graph will be simplified eraising those branches and links which retrive poor overlap between the reads. All this part is done through statistical analysis, not taking in consideration the sequences of the reads or the phred score of them.
+To assert the presence of contigs (gaps in the coverage), the algorithm has been implemented with a hierarchical clustering of the remaining weighted edges (embedding of the graph will be implemented to retrive further information and statistical analysis). The clustering is performed uscing the weights of the edges as distances between each point (node/read in the graph). This part of clustering is done not only in order to divide the problem in smaller ones, to reduce the demand in space in the RAM usage, but also to increase the efficiency of the ANT colony system downstream.
 
-Aftermath each cluster is given as input to the ant colony system, which resolve the optimum problem of finding the best path (best assembly) and return a candidate solution. The path has to be now converted into sequence, in doing so the algorithm builds a consensus matrix. The final matrix evaluate and return the most probaboble base, taken in consideration the multiple overlap created by the algorithm and eacg base phred score. Possibles SNPs or variants will be stored in a separate file.
+Aftermath each cluster is given as input to the ant colony system, which resolve the optimum problem of finding the best path (best assembly) and return a candidate solution. The path has to be now converted into sequence, in doing so the algorithm builds a consensus matrix. The final matrix evaluate and return the most probable base at each position, taken in consideration the multiple overlap created by the algorithm and each base phred score. Possibles SNPs or variants will be stored in a separate file.
+
+Some of the features are not already present, however they will be implemented sonn or are currently in the developing process.
 
 ## Usage
 
-Up to date the algorithm function only with option `--test`
 
 ``` bash
-usage: ants_assembly.py [-h] [-i INPUT [INPUT ...]] [-o OUTPUT_DIRECTORY] [--test [TEST]] [-p POPULATION_SIZE]
-                        [-e EVAPORATION_RATE] [-r LEARNING_RATE] [-v VERBOSE] [-cpus CPU_CORES] [-g MAX_GENERATION]       
-                        [-L IPOTHETICAL_LENGTH] [--ester_egg ESTER_EGG]
+usage: ants_assembly.py [-h] [-i INPUT [INPUT ...]] [-o OUTPUT_DIRECTORY] [--test [TEST]]
+                        [-p POPULATION_SIZE] [-e EVAPORATION_RATE] [-r LEARNING_RATE]
+                        [-v VERBOSE] [-cpus CPU_CORES] [-g MAX_GENERATION]       
+                        [-L IPOTHETICAL_LENGTH]
 
 options:
   -h, --help            show this help message and exit
@@ -61,9 +64,14 @@ options:
                         fondamental for retriving good results
 ```
 
+Up to date the algorithm function only with option `--test` or with fastq file of small dimensions (order of some Mb in total).
+
+## Future implementations
+
+- Create sub-matrices to split the RAM usage
+- Use of the graph embedding to analyse contigs
+- Implementation of hierarchical clustering
 
 ## Credits
-
-
 
 ## Licence

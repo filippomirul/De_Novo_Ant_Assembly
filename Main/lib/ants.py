@@ -98,6 +98,7 @@ class Assembly_problem():
             else:
                 next_component = selectors.fitness_proportionate_selection(random, feasible_components, {'num_selected': 1})[0]
             candidate.append(next_component)
+        print(candidate)
         return candidate
     
     # TODO Implement
@@ -123,6 +124,7 @@ class Assembly_problem():
             total = 0
             for c in candidate:
                 total += self.weights[c.element[0]][c.element[1]]
+            # print(candidate)
             last = (candidate[-1].element[1], candidate[0].element[0])
             current_path=[(c.element[0], c.element[1]) for c in candidate] 
             total += self.weights[last[0]][last[1]]

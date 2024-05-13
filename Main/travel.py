@@ -28,11 +28,11 @@ def main():
     parser.add_argument("-v", "--verbose", type = bool, default = False,
                         help = "Prints and return more information on how the process is developing")
     parser.add_argument("-cpus", "--cpus_cores", type = int,
-                        help = "Number of cpu to use; default = 2", default = 2)
-    parser.add_argument("--reads_lenght", default=200)
+                        help = "Number of cpu to use", default = 2)
+    parser.add_argument("--reads_lenght", default=200, type = int)
     parser.add_argument("-g", "--max_generation", default = 10, help = "Number of iterations/generatios of the ant colony algorithm")
     parser.add_argument("-s", "--simulation", default = True, help="This is development only!")
-    parser.add_argument("-L", "--ipothetical_length", default=10000,
+    parser.add_argument("-L", "--ipothetical_length", default=10000, type = int,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
 
     args = parser.parse_args()
