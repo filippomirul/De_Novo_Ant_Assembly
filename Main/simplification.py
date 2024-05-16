@@ -36,13 +36,22 @@ def main():
     num_links = eval_nonzeros(graph)/2
 
     print(f"[{datetime.datetime.now()}]: Finished the reduction of the data structure. Graph has {num_links} edges")
-    print(f"[{datetime.datetime.now()}]: The problem dimension is {len(graph)} x {len(graph)}")
 
     print(f"sempl:{graph[0]}")
 
     # print(graph)
-    data = {"data_semplified":graph}
-    savemat(graph_path_sempl, mdict = data, do_compression = False, appendmat=True)
+
+
+
+
+
+
+
+
+
+
+
+    savemat(graph_path_sempl, mdict = {"data_semplified":graph}, do_compression = False, appendmat=True)
 
 if __name__ == "__main__":
     main()

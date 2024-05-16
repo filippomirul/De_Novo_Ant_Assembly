@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#C:\Users\filoa\AppData\Local\Programs\Python\Python311\ python
+
 
 from lib.colony import *
 from lib.seq_dealing import *
@@ -10,6 +10,8 @@ import argparse
 import textwrap
 import datetime 
 from scipy.io import savemat, loadmat
+
+from scipy.linalg import get_blas_funcs, triu
 
 
 def incipit():
@@ -30,7 +32,7 @@ def incipit():
 
 def main():
 
-    print(f"[{datetime.datetime.now()}]: Benvenidos!!")
+    print(f"[{datetime.datetime.now()}]: Benvienidos!!")
 
     incipit()
 
@@ -41,16 +43,11 @@ def main():
         description = textwrap.dedent("""
         """))
 
-
-    ## Real-Program
-
     parser.add_argument("-i", "--input", type = str, help = "The input must be a fasta or fastq file", nargs="+")
     parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "/standard_output")
+    parser.add_argument("--tmp", help="Temporary directory where to store temporary files. If not passed tmp files will be saved in the current directory."
+                        , type = str, default="./")
 
-
-    # These 3 are useless for now
-    # parser.add_argument("-ont", "--nanopore_long_reads", type = str, help = "Nanoporo long reads")
-    # parser.add_argument("-hifi", "--Pacbio_long_reads", type = str, help = "Hifi Pacbio reads")
     parser.add_argument("--test", help = "This is for testing", nargs="?", const="test", type=str)
     
     parser.add_argument("-p", "--population_size", type = int, default = 150,
@@ -69,8 +66,7 @@ def main():
 
     args = parser.parse_args()
 
-    # print(args)
-
+    # Asserting location
     current_path = os.getcwd()
     current_path = "/".join(current_path.split("\\"))
     # print(current_path)
@@ -80,11 +76,25 @@ def main():
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    data_out_path = current_path + "/Data"
+    if args.tmp != None:
+        tmp_path = args.tmp
+    else:
+        tmp_path = current_path
 
+    data_out_path = current_path + "/Data"
     graph_path = data_out_path + "/graph_metadata.mat"
     final_array_path = data_out_path + "/final_array.mat"
     reads_path = data_out_path + "/reads.mat"
+    phred_path = current_path +"/phred.mat"
+
+    print(f"[{datetime.datetime.now()}]: Output directory : {out_dir}")
+    print(f"[{datetime.datetime.now()}]: Number of cpus given : {args.cpu_cores}")
+    print(f"[{datetime.datetime.now()}]: Parameters passed to the Ant coony system algorithm")
+    print(f"[{datetime.datetime.now()}]: Number of ants generations: {args.max_generation}")
+    print(f"[{datetime.datetime.now()}]: Number of ants at each generation: {args.population_size}")
+    print(f"[{datetime.datetime.now()}]: Evaporation rate: {args.evaporation_rate}")
+    print(f"[{datetime.datetime.now()}]: Learning rate: {args.learning_rate}\n")
+
 
 
     # Reads simulation
@@ -97,6 +107,8 @@ def main():
 
         sequence = extracting_sequence_from_data(args.input, limit = args.ipothetical_length)
         print(f"[{datetime.datetime.now()}]: Lenght of the sequence is : {len(sequence)}")
+        print(f"[{datetime.datetime.now()}]: Coverage: {coverage}")
+        print(f"[{datetime.datetime.now()}]: Lenght of the reads: {reads_length}")
 
         reads = custom_reads(seq = sequence, coverage = coverage, length_reads = reads_length,
                               res_path=out_dir, verbose=args.verbose)
@@ -115,10 +127,10 @@ def main():
             print(f"[{datetime.datetime.now()}]: Accessing input files:")
 
             phred_score_reads = extract_reads(args.input[0]) 
-            reads = phred_score_reads[0][:int(len(phred_score_reads[0])/args.ester_egg)]
+            reads = phred_score_reads[0][:int(len(phred_score_reads[0])/1)]
 
-            print(f"[{datetime.datetime.now()}]: {len(reads)} ")
-            phred_score_reads = phred_score_reads[1]
+            print(f"[{datetime.datetime.now()}]: There are {len(reads)} reads given as input! ")
+            # savemat(phred_path, mdict= {"phred_reads":phred_score_reads[1]}, do_compression=True, appendmat=True)
 
 
     print(f"[{datetime.datetime.now()}]: Starting the encoding of the reads")
@@ -127,8 +139,7 @@ def main():
 
     # print(f"reads: {reads[0]}")
 
-    rr = {"reads":reads}
-    savemat(reads_path, mdict = rr, do_compression = False, appendmat=True)
+    # savemat(reads_path, mdict = {"reads":reads}, do_compression = False, appendmat=True)
 
 
     print(f"[{datetime.datetime.now()}]: Reads has been successfully converted!")
@@ -138,6 +149,9 @@ def main():
     print(f"[{datetime.datetime.now()}]: Building the Overlap-Layout Consensus (OLC) graph")
 
     links = Parallel(n_jobs=args.cpu_cores)(delayed(split_align)(i)for i in [(reads,j) for j in range(len(reads))])
+
+    "Try not using the matrix and see how big the list will be"
+
     graph = assemble_matrix(links, len(reads))
     # graph = eval_allign_np(reads = reads)
 
@@ -148,8 +162,7 @@ def main():
 
     # print(graph_path)
 
-    data = {"data":graph}
-    savemat(graph_path, mdict = data, do_compression = False, appendmat=True)
+    savemat(graph_path, mdict = {"data":graph}, do_compression = False, appendmat=True)
 
     command_shell_simpl = f"python simplification.py -i {graph_path}"
 
@@ -208,6 +221,10 @@ if __name__ == "__main__":
     main()
 
     # TODO list:
-    #       Semplification
     #       Output writing
+    #       Embeddings
+    #       Clustering
+    #       Cross-over
+    #       Phred score in consensus sequence
+    #       linkage between variants
 

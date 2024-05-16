@@ -21,6 +21,7 @@ def main():
     parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "./standard_output")
     parser.add_argument("-p", "--population_size", type = int, default = 80,
                         help = "")
+    parser.add_argument("--verbose", help = "Show a plot regarding the ants travel", default=False)
     parser.add_argument("-e", "--evaporation_rate", type = float, default = 0.2,
                          help="Internal parameter of the ant colony system")
     parser.add_argument("-r", "--learning_rate", type = float, default = 0.4,
@@ -47,10 +48,7 @@ def main():
 
     # print(loadmat(args.input)["data"])
 
-    matrix_sempl = loadmat(args.input)["data_semplified"]
-    # print(f"matrix_sempl: {matrix_sempl}")
-
-    problem = Assembly_problem(matrix = matrix_sempl, approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
+    problem = Assembly_problem(matrix = loadmat(args.input)["data_semplified"], approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
 
     print(f"[{datetime.datetime.now()}]: Assembly problem has been asserted!")
 
@@ -58,11 +56,11 @@ def main():
     
     ac.terminator = ec.terminators.generation_termination
 
-    # if args.verbose:
-    #     display = True
-    #     ac.observer = ec.observers.stats_observer
-    # else:
-    #     display = False
+    if args.verbose:
+        display = True
+        ac.observer = ec.observers.stats_observer
+    else:
+        display = False
 
     print(f"[{datetime.datetime.now()}]: Proceeding with ants ...")
 
@@ -82,9 +80,8 @@ def main():
 
     # print(final)
     print(f"[{datetime.datetime.now()}]: Ants have been travelling for so long, but they finally did it!!")
-    data = {"Best_ACS":final}
 
-    savemat(final_array_path, mdict=data, do_compression=True)
+    savemat(final_array_path, mdict={"Best_ACS":final}, do_compression=True)
 
 #######################################################
 

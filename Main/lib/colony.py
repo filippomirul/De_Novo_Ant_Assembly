@@ -1,6 +1,7 @@
 import datetime
 import os
 import numpy as np
+from numpy import float32
 import random
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
@@ -202,36 +203,38 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mis
 
 @jit(nopython=True)
 def split_align(tuple:tuple):
+    """This function crates a tuple for each edge -> (from node, to node, score, diff, distance)"""
     reads = tuple[0]
     epoch = tuple[1]
     molt = 100
     comparison = reads[epoch]
     out = []
     for i in range(epoch, len(reads)):
-        alignment = __np_align_func__(reads[i], comparison)
         if i == epoch:
             continue
+        else:
+            alignment = __np_align_func__(reads[i], comparison)
 
-        if alignment[0] > 0:
-            if alignment[2]:
+            if alignment[0] > 0:
+                if alignment[2]:
 
-                if alignment[1] > 0:
-                    out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))                
+                    if alignment[1] > 0:
+                        out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))                
+                    else:
+                        out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
                 else:
-                    out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
-            else:
-                if alignment[1] > 0:
-                    out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
-                
-                else:
-                    out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))
+                    if alignment[1] > 0:
+                        out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
+                    
+                    else:
+                        out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))
 
     return out
 
 
 def assemble_matrix(edges: list, num_reads:int)-> np.ndarray:
 
-    weigth_matrix = np.zeros((num_reads, num_reads))
+    weigth_matrix = np.zeros((num_reads, num_reads), dtype=float32)
 
     for epoch in edges:
         for link in epoch:

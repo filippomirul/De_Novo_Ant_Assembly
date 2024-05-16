@@ -2,6 +2,7 @@
 
 ## Table of content
 
+- [Intro](#introduction)
 - [Requirements](#requirement)
 - [Description](#descrioption)
 - [Usage](#usage)
@@ -20,8 +21,12 @@
 - Sklearn
 - Biopython
 
+## Introduction
 
-## Descrioption
+
+
+
+## Description
 
 This algorithm, instead of the usual De Bujin graph used in the majority of similar methods to performe de novo assembly, builds an Overlap-Layout Consensus (OLC) graph starting from the reads given in input. At this data the only input format available is fastq, however the file passed could be, not only deriving from illumina sequencing platform, but also from both nanopore (ONT) and hifiam (Pacbio) platforms.
 
