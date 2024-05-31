@@ -2,6 +2,15 @@ from joblib import Parallel, delayed
 from numba import jit
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
+from node2vec import Node2Vec 
+import networkx as nx
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
+import datetime
+from numba import jit
+from scipy.cluster.hierarchy import dendrogram
+import os
 
 def eval_nonzeros(graph:np.ndarray)-> int:
 
@@ -60,87 +69,44 @@ def graph_semplification(graph:np.ndarray, cores:int)->np.ndarray:
     matrix = __matrix_sempl__(graph, dissmissable_links=indeces_to_cut)
 
     return matrix
-
-class graph_embed():
-    
-    def __init__(self, edges, dist_threshold= 0.5, dimensions=30, walk_length=50, num_walks=200, workers=1,
-                window=10, min_count=1, batch_words=4,  linkage="single"):
-        self.edges = edges
-        self.dist_matrix = loadmat()
-        self.graph = nx.DiGraph()
-        self.dimensions = dimensions
-        self.walk_length = walk_length
-        self.num_walks = num_walks
-        self.workers = workers
-        self.window = window
-        self.min_count = min_count
-        self.batch_words = batch_words
-        self.linkage = linkage
-        self.dist_threshold = dist_threshold
-        self.model=None
-        self.embed=None
-        self.x_cord=None
-        self.y_cord=None
         
 
-    def embed(self):
-        "Build the graph through networkx with the edges evaluated before"
-        self.graph.add_weighted_edges_from([(self.edges[0], self.edges[1], self.edges[4]) for i in self.edges])
+def cluster(distance_matrix: np.ndarray, distance=True, linkage="single", dist_threshold= 0.003):
+    "This part performe the hierarchical clustering to the matrix distance between each point/node"
 
-        node2vec = Node2Vec(self.graph, dimensions=self.dimensions, walk_length=self.walk_length, num_walks=self.num_walks, workers=self.workers)
-
-        self.embed = node2vec.fit(window=self.window, min_count=self.min_count, batch_words=self.batch_words)
-
-        vector_list = [self.embed.wv.get_vector(node) for node in self.embed.wv.index_to_key]
-
-        pca = PCA(n_components=2)
-        comp = pca.fit(vector_list).transform(vector_list)
-
-        self.x_cord = [i[0] for i in comp]
-        self.y_cord = [i[1] for i in comp]
-        
-
-    def cluster(self):
-        "This part performe the hierarchical clustering to the matrix distance between each point/node"
-
-        self.model = AgglomerativeClustering(compute_distances=True, distance_threshold = self.dist_threshold,  n_clusters=None,
-                                            metric="precomputed", linkage=self.linkage).fit(self.dist_mat)
-
+    cluster = AgglomerativeClustering(compute_distances=True, distance_threshold = dist_threshold,  n_clusters=None,
+                                        metric="precomputed", linkage=linkage).fit(distance_matrix)
     
-    def __associate_cluster__(self):
-        raise NotImplemented
-
-    def plot_dendrogram(self, plot_save_path="dendrogram_cluster"):
-        # Create linkage matrix and then plot the dendrogram
-
-        # create the counts of samples under each node
-        counts = np.zeros(self.model.children_.shape[0])
-        n_samples = len(self.model.labels_)
-        for i, merge in enumerate(self.model.children_):
-            current_count = 0
-
-            for child_idx in merge:
-
-                if child_idx < n_samples:
-                    current_count += 1  # leaf node
-                else:
-                    current_count += counts[child_idx - n_samples]
-            counts[i] = current_count
-
-        linkage_matrix = np.column_stack(
-            [self.model.children_, self.model.distances_, counts]
-        ).astype(float)
-
-        # Plot the corresponding dendrogram
-        plt.title("Hierarchical Clustering Dendrogram")
-        dendrogram(linkage_matrix)
-        plt.xlabel("Number of points in node (or index of point if no parenthesis).")
-        plt.savefig(plot_save_path)
+    return cluster
 
 
-    def plot_embed(self, plot_save_path="embed_plot"):
+def plot_dendrogram(model, plot_save_path="dendrogram_cluster"):
+    # Create linkage matrix and then plot the dendrogram
 
-        plt.scatter(self.x_cord, self.y_cord)
-        plt.savefig(plot_save_path)
+    # create the counts of samples under each node
+    counts = np.zeros(model.children_.shape[0])
+    n_samples = len(model.labels_)
+    for i, merge in enumerate(model.children_):
+        current_count = 0
+
+        for child_idx in merge:
+
+            if child_idx < n_samples:
+                current_count += 1  # leaf node
+            else:
+                current_count += counts[child_idx - n_samples]
+        counts[i] = current_count
+
+    linkage_matrix = np.column_stack(
+        [model.children_, model.distances_, counts]
+    ).astype(float)
+
+    # Plot the corresponding dendrogram
+    plt.title("Hierarchical Clustering Dendrogram")
+    dendrogram(linkage_matrix)
+    plt.xlabel("Number of points in node (or index of point if no parenthesis).")
+    plt.savefig(plot_save_path)
+
+    return None
 
 

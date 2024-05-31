@@ -82,10 +82,10 @@ def main():
         tmp_path = current_path
 
     data_out_path = current_path + "/Data"
-    graph_path = data_out_path + "/graph_metadata.mat"
+    graph_path = data_out_path + "/graph_metadata.txt"
     final_array_path = data_out_path + "/final_array.mat"
-    reads_path = data_out_path + "/reads.mat"
-    phred_path = current_path +"/phred.mat"
+    reads_path = data_out_path + "/reads.txt"
+    phred_path = current_path +"/phred.txt"
 
     print(f"[{datetime.datetime.now()}]: Output directory : {out_dir}")
     print(f"[{datetime.datetime.now()}]: Number of cpus given : {args.cpu_cores}")
@@ -137,9 +137,11 @@ def main():
 
     reads = parallel_coding(reads=reads, number_cpus=args.cpu_cores)
 
-    # print(f"reads: {reads[0]}")
+    # with open(reads_path, "w") as file:
 
-    # savemat(reads_path, mdict = {"reads":reads}, do_compression = False, appendmat=True)
+
+    # print(f"reads: {reads[0]}")
+    # can't save with .mat because reads have different length
 
 
     print(f"[{datetime.datetime.now()}]: Reads has been successfully converted!")
@@ -150,21 +152,18 @@ def main():
 
     links = Parallel(n_jobs=args.cpu_cores)(delayed(split_align)(i)for i in [(reads,j) for j in range(len(reads))])
 
-    "Try not using the matrix and see how big the list will be"
-
     graph = assemble_matrix(links, len(reads))
-    # graph = eval_allign_np(reads = reads)
 
     # print(f"graph: {graph[0]}")
     
-    num_links = eval_nonzeros(graph)/2
+    num_links = eval_nonzeros(graph)/2 # change this with something similar
     print(f"[{datetime.datetime.now()}]: Finished the building of the data structure. Graph has {num_links} edges")
 
     # print(graph_path)
 
-    savemat(graph_path, mdict = {"data":graph}, do_compression = False, appendmat=True)
+    # savemat(graph_path, mdict = {"data":graph}, do_compression = False, appendmat=True)
 
-    command_shell_simpl = f"python simplification.py -i {graph_path}"
+    command_shell_simpl = f"python simplification.py -i {graph_path}"  # Add things
 
     subprocess.run(shlex.split(command_shell_simpl), check=True)
 

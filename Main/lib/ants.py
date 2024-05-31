@@ -102,7 +102,7 @@ class Assembly_problem():
         return candidate
     
     # TODO Implement
-    def cross_over(path:list, matrix:list):
+    def cross_over(self, path:list, matrix:list):
         """This function recombine the solution, is a sort of crossing-over. Takes the path and the score associated to each edge
         iterate over the path and switch two edge.
         """
