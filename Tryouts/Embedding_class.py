@@ -282,7 +282,6 @@ def links_formation(links:list, cpu=2)->list:
 
     return Parallel(n_jobs=cpu)(delayed(__split_align__)(i)for i in [(links,j) for j in range(len(links))])
 
-import os
 
 jit(nopython=True)
 def __list_selection_(row_edges:list, cut_off = 0.05)->list:
@@ -334,9 +333,9 @@ def edge_selection(edges:list, cpu=2)->list:
 
 
 seq = extracting_sequence_from_data("C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna",
-                                    limit=1000000)
+                                    limit=8000)
 
-reads, POS = custom_reads(seq, res_path="", length_reads=2000, gap=True, verbose=True, coverage=20, num_gap=2, pos = True)
+reads, POS = custom_reads(seq, res_path="", length_reads=80, gap=True, verbose=True, coverage=20, num_gap=4, pos = True)
 
 
 print(len(reads))
@@ -524,7 +523,7 @@ plt.show()
 
 tt = np.quantile(n, 0.4)
 
-g.embed()
+# g.embed()
 g.cluster_building(dist_threshold=tt)
 g.plot_dendrogram(truncate_mode = "level", p=12)
 # print(g.cluster.labels_)
@@ -571,7 +570,7 @@ print(cnt)
 dist_matrix= np.delete(dist_matrix, np.array(ma), 0)
 dist_matrix= np.delete(dist_matrix, np.array(ma), 1)
 
-tt = AgglomerativeClustering(compute_distances=True,  n_clusters=cnt, metric="precomputed", linkage="average")
+tt = AgglomerativeClustering(compute_distances=True,  n_clusters=cnt, metric="precomputed", linkage="complete")
 tt.fit(dist_matrix)
 
 POS = np.delete(np.array(POS), np.array(ma))

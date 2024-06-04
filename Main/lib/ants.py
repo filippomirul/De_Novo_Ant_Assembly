@@ -4,11 +4,22 @@ from inspyred import swarm
 from inspyred import ec
 from inspyred.ec import selectors
 import numpy as np
+import pickle
 
-# import collections
-# collections.Iterable = collections.abc.Iterable
-# collections.Sequence = collections.abc.Sequence
+def save_list(data:list, where:str)-> None:
+    """Function for saving list files"""
 
+    with open(where, "wb") as file:
+        pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)
+
+    return None
+
+def load_list(where:str)-> list:
+    
+    with open('data.pickle', 'rb') as f:
+        data = pickle.load(f)
+        
+    return data
 
 def __consensus_sequence_partial__(path:list, positions:list , reads_len:int) -> int:
     """
@@ -69,6 +80,27 @@ class Assembly_problem():
         self.best_path = None
         self.maximize = True
         self.length = approximate_length
+
+    def cross_over(self, path:list):
+        """This function recombine the solution, is a sort of crossing-over. Takes the path and the score associated to each edge
+        iterate over the path and switch two edge.
+        """
+
+        min_1 = path.index(min([c.value for c in path]))
+        edge_not_used = [i for i in self.components if i not in path]
+        max_2 = max(edge_not_used)
+        print(max_2)
+
+        new_path = [path[-min_1 + 1 :]]
+        new_path.append(max_2)
+
+        for i in path[:min_1-1]:
+            new_path.append(i)
+
+        print(f"Before cross-over: {path}")
+        print(f"After cross-over: {new_path}")
+
+        return new_path
     
     def constructor(self, random, args):
         """Return a candidate solution for an ant colony optimization."""
@@ -98,23 +130,10 @@ class Assembly_problem():
             else:
                 next_component = selectors.fitness_proportionate_selection(random, feasible_components, {'num_selected': 1})[0]
             candidate.append(next_component)
-        print(candidate)
+        # print(candidate)
+        if random.random() <= self.bias:
+            candidate = self.cross_over(candidate)
         return candidate
-    
-    # TODO Implement
-    def cross_over(self, path:list, matrix:list):
-        """This function recombine the solution, is a sort of crossing-over. Takes the path and the score associated to each edge
-        iterate over the path and switch two edge.
-        """
-        imaginary_string = range(len(path))
-
-        min_1 = path.index(min([c.value for c in path]))
-        min_2 = path.index(min([c.value for c in path if (c.element[0] == min_1[0]) and (c.element[1] == min_1[1])]))
-        if min_2 == None:
-            return None
-        else:
-            # make cross over between those two
-            return None
 
     # TODO rebuild
     def evaluator(self, candidates:list, args):

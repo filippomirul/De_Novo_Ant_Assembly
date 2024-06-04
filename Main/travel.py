@@ -40,7 +40,9 @@ def main():
 
     current_path = os.getcwd()
     data_out_path = current_path + "/Data"
-    final_array_path = data_out_path + "/final_array.mat"
+    final_array_path = data_out_path + "/final_array.pkl"
+    selected_edge_path = data_out_path +"/selected_edges.pkl"
+
 
 
     seed = random.randint(1, 100)
@@ -48,7 +50,7 @@ def main():
 
     # print(loadmat(args.input)["data"])
 
-    problem = Assembly_problem(matrix = loadmat(args.input)["data_semplified"], approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
+    problem = Assembly_problem(matrix = load_list(where=selected_edge_path), approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
 
     print(f"[{datetime.datetime.now()}]: Assembly problem has been asserted!")
 
@@ -81,7 +83,7 @@ def main():
     # print(final)
     print(f"[{datetime.datetime.now()}]: Ants have been travelling for so long, but they finally did it!!")
 
-    savemat(final_array_path, mdict={"Best_ACS":final}, do_compression=True)
+    save_list(data=final , where=final_array_path)
 
 #######################################################
 

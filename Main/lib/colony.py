@@ -1,15 +1,28 @@
 import datetime
 import os
 import numpy as np
-from numpy import float32
 import random
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from tqdm import tqdm
-import collections
+import pickle
 from numba import jit, prange
 from Bio import pairwise2
 
+
+def save_list(data:list, where:str)-> None:
+    """Function for saving list files"""
+
+    with open(where, "wb") as file:
+        pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)
+
+    return None
+
+def load_list(where:str)-> list:
+    
+    with open('data.pickle', 'rb') as f:
+        data = pickle.load(f)
+    return data
 
 def __de_code__(read:np.ndarray)->str:
     return "".join([chr(c) for c in read])
@@ -202,140 +215,52 @@ def __np_align_func__(seq_one:np.ndarray, seq_two:np.ndarray, match:int = 3, mis
 
 
 @jit(nopython=True)
-def split_align(tuple:tuple):
+def __split_align__(tuple:tuple):
     """This function crates a tuple for each edge -> (from node, to node, score, diff, distance)"""
+    
     reads = tuple[0]
-    epoch = tuple[1]
-    molt = 100
+    epoch = tuple[1] # row
+    distance_vector = np.zeros(len(reads))
+
+    # molt = MEAN_LENGTH *100
+    molt = 1
     comparison = reads[epoch]
     out = []
-    for i in range(epoch, len(reads)):
+    for i in range(len(reads)):
         if i == epoch:
             continue
         else:
             alignment = __np_align_func__(reads[i], comparison)
 
             if alignment[0] > 0:
-                if alignment[2]:
 
+                if alignment[2]:
                     if alignment[1] > 0:
-                        out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))                
+                        out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))
+                        distance_vector[i] = molt/alignment[0]
+                        # distance_vector[i] = len(reads[i]) - abs(alignment[2] * 2) +1 
                     else:
-                        out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
+                        distance_vector[i] = molt/alignment[0]
+                        # distance_vector[i] = len(reads[i]) - abs(alignment[2] * 2) +1
+
                 else:
                     if alignment[1] > 0:
-                        out.append((i,  epoch, alignment[0], alignment[1], molt/alignment[0]))
-                    
+                        distance_vector[i] = molt/alignment[0]
+                        # distance_vector[i] = len(reads[i]) - abs(alignment[2] * 2) +1
+  
                     else:
                         out.append(( epoch, i, alignment[0], alignment[1], molt/alignment[0]))
-
-    return out
-
-
-def assemble_matrix(edges: list, num_reads:int)-> np.ndarray:
-
-    weigth_matrix = np.zeros((num_reads, num_reads), dtype=float32)
-
-    for epoch in edges:
-        for link in epoch:
-            weigth_matrix[link[0] ,link[1]] = link[2]
-            weigth_matrix[link[1] ,link[0]] = float(f"{0}.{abs(link[3])}1")
-
-    return weigth_matrix
+                        distance_vector[i] = molt/alignment[0]
+                        # distance_vector[i] = len(reads[i]) - abs(alignment[2] * 2) +1
 
 
-def eval_allign_np(reads:list, par:list = [3, -2]) -> np.ndarray:
-    """Funtion that evaulate the alignment
 
-    reads: list of DNA sequences, each of the read is a list of integers that resemble the real sequence
-
-    par: list of parameters to performe the alignment
-    es (the examples represent the defoult parameters):
-    match_score = 3,
-    mismatch_penalty = -2,
-
-    output:
-    Matrix with the weigts (distances) between the reads (nodes)
-    In this matrix there are both the scores of the alignment, recognizable for the tipical integer score (even if is a float point) and
-    a flaot number (like 0.23) which is needed after to recompose the sequence; it indicates the overlapping bases.
-    Ex:
-        allignment score -> 2.0, 13.0, ...
-        overlapping number -> 24.1, 6.1, 56.1, ...
-            To avoid problem later with 0 a 1 digit is added for then remove it. So 0.30 become 0.301 but the corret indices are 12 and 30.
-
-        These two numbers are link by the position in the matrix which are the trasposition
-        Score 14.0 in position (1,5) --> 34.1 in position (5,1). Only the score position is referred
-        to the direction of the edge.
-        1 ---> 5 with allignment score 14 and read_1 is overlapped with read_5 in positions 34 (both included)
-
-    Example of a matrix with three reads:
-
-        | 1    | 2    | 3    
-     1  | 0    |3.0   | 23.1 
-     2  | 60.1 |  0   | 23.0
-     3  | 18.0 | 70.1 |  0
-    """
-    length = len(reads)
-    # initialization of the matrices
-    weigth_matrix = np.zeros((length, length), dtype=np.float32)
-
-    # The score of the allingment of read[1] to read[2] is the same of the opposite (read[2] to read[1])
-    # So when the function found the diretionality of the allignment put the score in rigth spot and a 0 in the wrong one.
-    visited = collections.deque([j for j in range(length)])
-    # comb = combinations(range(len(reads)),2)
-    # for i,j in comb:
-
-    for i in tqdm(range(length)):
-
-        for j in visited:
-
-            if i == j:
-                # the diagonal of the matrix has 0 score because we are allinging the same sequence
-                continue
-            else:
-                # pairwise must return a positive score, if there is no one it return None
-                alignment = __np_align_func__(reads[i], reads[j], match = par[0], mismatch = par[1])
-
-                if alignment[0] > 0:
-
-                    if alignment[2]:
-                        # Swithch happend so reads[j] is longer then reads[i]
-                        if alignment[1] > 0:
-                            # cond = first sequence is upstream
-                            weigth_matrix[j, i] = alignment[0]
-                            weigth_matrix[i, j] = float(f"{abs(alignment[1])}.1")
-                        
-                        else:
-                            # cond = first sequence is downstream
-                            weigth_matrix[i, j] = alignment[0]
-                            weigth_matrix[j, i] = float(f"{abs(alignment[1])}.1")
-
-                    else:
-                        if alignment[1] > 0:
-                            # cond = first sequence is upstream
-                            weigth_matrix[i, j] = alignment[0]
-                            weigth_matrix[j, i] = float(f"{abs(alignment[1])}.1")
-                        
-                        else:
-                            # cond = first sequence is downstream
-                            weigth_matrix[j, i] = alignment[0]
-                            weigth_matrix[i, j] = float(f"{abs(alignment[1])}.1")
-
-                else:
-                    continue
-
-                    
-        visited.popleft()
-    return weigth_matrix
+    return (out, distance_vector)
 
 
-def eval_nonzeros(graph:np.ndarray)-> int:
+def links_formation(links:list, cpu=2)->list:
 
-    cnt = 0
-    for i in range(len(graph)):
-        cnt += np.count_nonzero(graph[i])
-
-    return cnt
+    return Parallel(n_jobs=cpu)(delayed(__split_align__)(i)for i in [(links,j) for j in range(len(links))])
 
 
 def final_consensus(path:list, reads:list, positions:list, length:int = 50000, max_coverage: int = 16) -> np.ndarray:
