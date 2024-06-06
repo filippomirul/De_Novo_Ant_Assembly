@@ -59,9 +59,9 @@ def main():
     parser.add_argument("-v", "--verbose", type = bool, default = True,
                         help = "Prints and return more information on how the process is developing")
     parser.add_argument("-cpus", "--cpu_cores", type = int,
-                        help = "Number of cpu to use; default = 2", default = 2)
+                        help = "Number of cpu to use; default = 2", default = 3)
     parser.add_argument("-g", "--max_generation", default = 8, help = "Number of iterations/generatios of the ant colony algorithm")
-    parser.add_argument("-L", "--ipothetical_length", default = 100000,
+    parser.add_argument("-L", "--ipothetical_length", default = 1000,
                          help = "For a better reconstruction of the genome an ipotetical lenght of the sequence to rebuild is fondamental for retriving good results")
 
     args = parser.parse_args()
@@ -83,7 +83,7 @@ def main():
 
     data_out_path = current_path + "/Data"
     final_array_path = data_out_path + "/final_array.pkl"
-    all_links_path = data_out_path + "all_links.pkl"
+    all_links_path = data_out_path + "/all_links.pkl"
     selected_edge_path = data_out_path +"/selected_edges.pkl"
     reads_path = data_out_path + "/reads.pkl"
     phred_path = data_out_path +"/phred.pkl"
@@ -97,19 +97,18 @@ def main():
     print(f"[{datetime.datetime.now()}]: Learning rate: {args.learning_rate}\n")
 
 
-
     # Reads simulation
 
     if args.test == "test":
         args.input = "C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna"
-        reads_length = 2000
+        reads_length = 150
         coverage = 12
         args.verbose = True
 
         sequence = extracting_sequence_from_data(args.input, limit = args.ipothetical_length)
         print(f"[{datetime.datetime.now()}]: Lenght of the sequence is : {len(sequence)}")
         print(f"[{datetime.datetime.now()}]: Coverage: {coverage}")
-        print(f"[{datetime.datetime.now()}]: Lenght of the reads: {reads_length}")
+        print(f"[{datetime.datetime.now()}]: Lenght of the reads: {reads_length}\n")
 
         reads = custom_reads(seq = sequence, coverage = coverage, length_reads = reads_length,
                               res_path=out_dir, verbose=args.verbose)
@@ -146,17 +145,21 @@ def main():
 
     links = links_formation(reads, cpu=args.cpu_cores)
 
+    print(f"[{datetime.datetime.now()}]: Saving graph structure in {all_links_path}")
+
     save_list(data = links, where= all_links_path)
 
-    command_shell_simpl = f"python simplification.py -i {all_links_path} --cpu_cores {args.cpu_cores}"  # Add things
+    print(f"[{datetime.datetime.now()}]: Progressing with semplification")
+
+    command_shell_simpl = f"python simplification.py -i {all_links_path} --cpu_cores {args.cpu_cores}" 
 
     subprocess.run(shlex.split(command_shell_simpl), check=True)
 
-    edges = load_list(where=selected_edge_path)
+    print(f"[{datetime.datetime.now()}]: Simplification has been performed!!")
 
     if args.test == "test":
 
-        command_shell_test = f"python travel.py -i {edges} --reads_lenght {reads_length} -L {args.ipothetical_length}"
+        command_shell_test = f"python travel.py -i {selected_edge_path} --reads_lenght {reads_length} -L {args.ipothetical_length}"
 
         # print(shlex.split(command_shell_test))
 
@@ -179,11 +182,13 @@ def main():
 
     best_ACS = load_list(where=final_array_path)
 
+    print(best_ACS)
+
     # print(f"best_ACS: {best_ACS}")
 
     print(f"[{datetime.datetime.now()}]: Building up the consesus matrix")
     
-    final_recons = final_consensus(best_ACS, reads, positions = graph, length = args.ipothetical_length)
+    # final_recons = final_consensus(best_ACS, reads, positions = graph, length = args.ipothetical_length)
 
     print(f"[{datetime.datetime.now()}]: Retriving additional information and statistics")
 
@@ -208,7 +213,7 @@ if __name__ == "__main__":
     #       Output writing
     #       Embeddings
     #       Clustering
-    #       Cross-over
     #       Phred score in consensus sequence
     #       linkage between variants
+    #       Problem with repeats and long intersparse trasposone
 

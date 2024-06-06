@@ -6,7 +6,7 @@ import argparse
 import textwrap
 import datetime
 from lib.Simplification_embedding import *
-from scipy.io import savemat, loadmat
+from scipy.io import savemat
 
 def main():
 
@@ -17,7 +17,7 @@ def main():
 
     parser.add_argument("-i", "--input", required=True,
                          help = "Matrix like structure representing the graph to be simplified")
-    parser.add_argument("--cpu_cores", default=2, )
+    parser.add_argument("--cpu_cores", default=3, type=int, help = "Number of cpu cores to use.")
 
     args = parser.parse_args()
 
@@ -25,18 +25,21 @@ def main():
 
     data_out_path = current_path + "/Data"
     selected_edge_path = data_out_path +"/selected_edges.pkl"
-    distance_matrix_path = data_out_path + "distance_matrix.mat"
-    plots_path = current_path + "Results"
-
+    distance_matrix_path = data_out_path + "/distance_matrix.mat"
+    plots_path = current_path + "/Results"
     graph_path_sempl = data_out_path + "/graph_sempl_metadata.mat"
 
     # Semplifing the OCL
 
-    print(f"[{datetime.datetime.now()}]: Starting with the simplification of the graph")
-
     all_links = load_list(where=args.input)
 
+    # print(all_links)
+
+    # print(f"Args: {args}")
+
     edges, distance_matrix = edge_selection(edges=all_links, cpu=args.cpu_cores)
+
+    print(edges)
 
     save_list(data=edges, where=selected_edge_path)
 

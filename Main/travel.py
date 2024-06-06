@@ -21,7 +21,6 @@ def main():
     parser.add_argument("-o", "--output_directory", type = str, help = "Directory of output", default = "./standard_output")
     parser.add_argument("-p", "--population_size", type = int, default = 80,
                         help = "")
-    parser.add_argument("--verbose", help = "Show a plot regarding the ants travel", default=False)
     parser.add_argument("-e", "--evaporation_rate", type = float, default = 0.2,
                          help="Internal parameter of the ant colony system")
     parser.add_argument("-r", "--learning_rate", type = float, default = 0.4,
@@ -48,9 +47,7 @@ def main():
     seed = random.randint(1, 100)
     prng = Random(seed)
 
-    # print(loadmat(args.input)["data"])
-
-    problem = Assembly_problem(matrix = load_list(where=selected_edge_path), approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
+    problem = Assembly_problem(edges=load_list(where=args.input), approximate_length = args.ipothetical_length, reads_len=args.reads_lenght)
 
     print(f"[{datetime.datetime.now()}]: Assembly problem has been asserted!")
 
@@ -75,7 +72,7 @@ def main():
                         pop_size = args.population_size,
                         max_generations = args.max_generation,
                         evaporation_rate = args.evaporation_rate,
-                        learning_rate = args.learning_rate)  #, **args)
+                        learning_rate = args.learning_rate) 
     
     # max(ac.archive).candidate
     final = np.array([ i.element for i in max(ac.archive).candidate])
@@ -83,7 +80,7 @@ def main():
     # print(final)
     print(f"[{datetime.datetime.now()}]: Ants have been travelling for so long, but they finally did it!!")
 
-    save_list(data=final , where=final_array_path)
+    save_list(data=final, where=final_array_path)
 
 #######################################################
 

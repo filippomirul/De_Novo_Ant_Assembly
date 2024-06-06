@@ -23,8 +23,9 @@ def save_list(data:list, where:str)-> None:
 
 def load_list(where:str)-> list:
     
-    with open('data.pickle', 'rb') as f:
+    with open(where, 'rb') as f:
         data = pickle.load(f)
+
     return data
 
 jit(nopython=True)
@@ -38,7 +39,7 @@ def __list_selection_(row_edges:list, cut_off = 0.05)->list:
     keep_links = []
 
     for i in range(len(weights)):
-        if weights[i] > limit:
+        if weights[i] >= limit:
             keep_links.append(row_edges[i])
 
 
@@ -57,14 +58,14 @@ def edge_selection(edges:list, cpu=2)->list:
     select_edges = []
 
     for i in range(len(res)):
-        for j in res[i]:
-            select_edges.append(j)
+        # for j in res[i]:
+        #     select_edges.append(j)
         if i == 0 or i == 1:
             continue
         else:
             dist_matrix = np.vstack((dist_matrix, edges[i][1]))
 
-    return select_edges, dist_matrix
+    return res, dist_matrix
 
 def eval_nonzeros(graph:np.ndarray)-> int:
 

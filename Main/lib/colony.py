@@ -20,7 +20,7 @@ def save_list(data:list, where:str)-> None:
 
 def load_list(where:str)-> list:
     
-    with open('data.pickle', 'rb') as f:
+    with open(where, 'rb') as f:
         data = pickle.load(f)
     return data
 
@@ -261,6 +261,14 @@ def __split_align__(tuple:tuple):
 def links_formation(links:list, cpu=2)->list:
 
     return Parallel(n_jobs=cpu)(delayed(__split_align__)(i)for i in [(links,j) for j in range(len(links))])
+
+################
+"""
+Same as for the ants for retriving the score, keep edges with a list of list to reduce the score retriving. Since here
+is not needed the score but the difference for the final alignment wich is the same thing as the score but instead at position 2 is at 3.
+
+"""
+################
 
 
 def final_consensus(path:list, reads:list, positions:list, length:int = 50000, max_coverage: int = 16) -> np.ndarray:

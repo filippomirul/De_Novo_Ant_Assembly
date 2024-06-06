@@ -333,14 +333,14 @@ def edge_selection(edges:list, cpu=2)->list:
 
 
 seq = extracting_sequence_from_data("C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna",
-                                    limit=8000)
+                                    limit=40000)
 
-reads, POS = custom_reads(seq, res_path="", length_reads=80, gap=True, verbose=True, coverage=20, num_gap=4, pos = True)
-
+reads, POS = custom_reads(seq, res_path="", length_reads=2000, gap=True, verbose=True, coverage=20, num_gap=4, pos = True)
 
 print(len(reads))
 
-reads = parallel_coding(reads,number_cpus=3)
+reads = parallel_coding(reads, number_cpus=3)
+
 
 print(f"[{datetime.datetime.now()}]: Done reads encoding")
 
@@ -384,16 +384,21 @@ class Graph_embed():
         self.y_cord = None
 
 
-    def embed(self,  dimensions=30, walk_length=300, num_walks=4000, workers=1, window=10, min_count=1, batch_words=4):
+    def embed(self,  dimensions=30, walk_length=100, num_walks=400, workers=1, window=10, min_count=1, batch_words=4):
         """Build the graph through networkx with the edges evaluated before
         initial setting: dimensions=30, walk_length=50, num_walks=200, workers=1, window=10, min_count=1, batch_words=4
         """
 
         self.graph.add_weighted_edges_from([i for i in self.edges])
 
+        nx.draw(self.graph)
+        plt.show()
+
         node2vec = Node2Vec(self.graph, dimensions=dimensions, walk_length=walk_length, num_walks=num_walks, workers=workers)
 
         self.embedding = node2vec.fit(window=window, min_count=min_count, batch_words=batch_words)
+
+        print(f"[{datetime.datetime.now()}]: Proceeding with the PCA")
 
         indexes = [int(i) for i in self.embedding.wv.index_to_key]            
 
@@ -427,7 +432,7 @@ class Graph_embed():
         raise NotImplemented
 
 
-    def plot_dendrogram(self, plot_save_path="/dendrogram_cluster", **kargs):
+    def plot_dendrogram(self, plot_save_path = "/dendrogram_cluster", **kargs):
         """To further options and informations check function dendrogram from scipy.cluster.hierarchy library.
         """
         # Create linkage matrix and then plot the dendrogram
@@ -479,21 +484,21 @@ class Graph_embed():
         if self.cluster != None:
             colors = self.cluster.labels_
             plt.scatter(self.x_cord, self.y_cord, c = colors)
+            plt.show()
             plt.xlabel("Colors indicated the clustering performed with Hierarchical clustering")
         else:
             plt.scatter(self.x_cord, self.y_cord, **kargs)
-        plt.show()
-        plt.savefig(cur_dir)
+            plt.show()
+            # plt.savefig(cur_dir)
 
         if test:
             plt.title("Node embeddings")
             plt.scatter(self.x_cord, self.y_cord, **kargs)
+            plt.show()
 
         return None
 
-
 g = Graph_embed(edges=edges, distance_matrix=dist_matrix)
-# print("Graph")
 
 v = [[]]
 cnt = 0
@@ -523,11 +528,12 @@ plt.show()
 
 tt = np.quantile(n, 0.4)
 
-# g.embed()
+g.embed()
 g.cluster_building(dist_threshold=tt)
-g.plot_dendrogram(truncate_mode = "level", p=12)
-# print(g.cluster.labels_)
-# print(g.cluster.n_clusters_)
+g.plot_dendrogram(truncate_mode = "level", p = 12)
+print(g.cluster.labels_)
+print(g.cluster.n_clusters_)
+g.plot_embed()
 
 
 d = []

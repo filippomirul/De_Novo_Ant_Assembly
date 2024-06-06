@@ -16,9 +16,9 @@ def save_list(data:list, where:str)-> None:
 
 def load_list(where:str)-> list:
     
-    with open('data.pickle', 'rb') as f:
+    with open(where, 'rb') as f:
         data = pickle.load(f)
-        
+
     return data
 
 def __consensus_sequence_partial__(path:list, positions:list , reads_len:int) -> int:
@@ -45,6 +45,13 @@ def __consensus_sequence_partial__(path:list, positions:list , reads_len:int) ->
     
     return tot_seq 
 
+def __get_score__(edges:list, from_node:int, to_node:int)-> float:
+    """Function to retrive the score of the alignment between two nodes"""
+    part = from_node/len(edges)
+
+
+    return score
+
 
 class Assembly_problem():
     """
@@ -70,11 +77,22 @@ class Assembly_problem():
       when constructing a candidate solution for ant colony optimization 
       (default 0.5)
     """
+
+    #######################
+    """
+    Create a structure like all_links with a list of list, istead of one big list.
+    In this way when I need a score I already know where the 'starting' node is, in this way I need to search only for
+    one node (with the bisec method searc). O(log(n))
+    """
+    ######################
+
     
-    def __init__(self, matrix:np.ndarray, approximate_length:int, reads_len:int):
-        self.weights = matrix
+    def __init__(self, edges:list, approximate_length:int, reads_len:int):
+        # self.weights = matrix
+        self.edges = [[j for j in i] for i in edges]
         self.reads_len = reads_len
-        self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if (modf(self.weights[i,j])[0] == 0) and (self.weights[i,j] != 0)]
+        self.components = [swarm.TrailComponent((i[0], i[1]), value = (i[2])) for i in self.edges]
+        # self.components = [swarm.TrailComponent((i, j), value=(self.weights[i][j])) for i, j in permutations(range(len(self.weights)), 2) if (modf(self.weights[i,j])[0] == 0) and (self.weights[i,j] != 0)]
         self.bias = 0.65
         self.bounder = ec.DiscreteBounder([i for i in range(len(self.weights))])
         self.best_path = None
@@ -89,7 +107,6 @@ class Assembly_problem():
         min_1 = path.index(min([c.value for c in path]))
         edge_not_used = [i for i in self.components if i not in path]
         max_2 = max(edge_not_used)
-        print(max_2)
 
         new_path = [path[-min_1 + 1 :]]
         new_path.append(max_2)
