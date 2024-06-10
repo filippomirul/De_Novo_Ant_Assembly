@@ -269,6 +269,29 @@ def links_formation(links:list, cpu=2)->list:
 
 import os
 
+#####
+"""
+The following can be parallelized parsing rows of the matrix. However multiples links has the possibility to be formed.
+Good thing, since can be further linked and lowered the complexity. Therefore to not incurr in errors or bugs
+the presence of cross links between them has to be checked.
+"""
+####
+
+def select_high_score_overlap(edges:list, threshold= 0.70)->list:
+    """This function search for two consecutive reads with most of them overlapping and a third,
+    which overlap with the fisrt with o relative low score.
+    Tha aim is to link the fisrt and the third with a high score, in order to lower the complexity of the graph.
+    """
+    return None
+
+
+def replace_high_overlap():
+    """ Here the selected nodes are replace with others high score links, informations has to be kept, so variants will be
+    stored in a file for later use when consensus sequence will be reconstruct.
+    """
+    return None
+
+
 jit(nopython=True)
 def __list_selection_(row_edges:list, cut_off = 0.1)->list:
     """Keep only those edges with a score above a certain percentile, default value keep only above 90%
@@ -370,15 +393,14 @@ edges, dist_matrix = edge_selection(links, cpu=6)
 # # print(edges[0])
 
 
-# w = []
-# for i in range(len(edges)):
-#     for j in edges[i]:
-#         w.append(j[2])
+w = []
+for i in range(len(edges)):
+    w.append(edges[i][2])
 
-# plt.close()
-# plt.title("all edges after selection")
-# plt.violinplot(w, quantiles=[0.5])
-# plt.show()
+plt.close()
+plt.title("all edges after selection")
+plt.violinplot(w, quantiles=[0.5, 0.9])
+plt.show()
 
 # v = []
 # for i in range(len(edges)):
