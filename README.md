@@ -75,7 +75,6 @@ Up to date the algorithm function only with option `--test` or with fastq file o
 
 ## Future implementations
 
-- Create sub-matrices to split the RAM usage
 - Use of the graph embedding to analyse contigs
 - Implementation of hierarchical clustering
 
