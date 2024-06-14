@@ -1,6 +1,6 @@
 # DNA-A (De Novo Ant - Assembly)
 
-At the moment the algorithm is temrorarly not working due to some changes in the baseline infrastucture for improving memory management.
+At the moment the algorithm is temporarly not working due to some changes in the baseline infrastucture for improving memory management.
 
 ## Table of content
 
