@@ -19,20 +19,24 @@ def save_list(data:list, where:str)-> None:
     return None
 
 def load_list(where:str)-> list:
-    
+    """Function for loading file"""    
     with open(where, 'rb') as f:
         data = pickle.load(f)
     return data
 
 def __de_code__(read:np.ndarray)->str:
+    """Need to convert int in character type, the algorithm use list of integers"""
     return "".join([chr(c) for c in read])
 
 
 def __uni_code__(read:str)->np.ndarray:
+    """Trasform each base in a number"""
     return np.array([ord(c) for c in read], dtype=np.float32)
 
 
 def parallel_coding(reads:list, number_cpus = 1, uni_coding=True):
+    """Implementation of the parallelization for decoding and encoding reads data. Since nucleotide base alphabet is converted in
+    numeric alphabet."""
     if uni_coding:
         reads = Parallel(n_jobs=number_cpus)(delayed(__uni_code__)(i)for i in reads)
         return reads
@@ -44,6 +48,7 @@ def parallel_coding(reads:list, number_cpus = 1, uni_coding=True):
 def custom_reads(seq: str, res_path:str, length_reads:int = 160, coverage:int = 5, verbose = False, gap =False) -> list:
     """The function splits the sequence in input into reads.
     The splitting is done using random numbers, and the number of reads is given by: (len(seq)/length_read)*coverage.
+    Is possible to specify lenght of the reads, coverage, presence gaps, 
     """
     len_sequence = (len(seq))
     number_of_reads = int(len_sequence/length_reads) * coverage
@@ -222,7 +227,6 @@ def __split_align__(tuple:tuple):
     epoch = tuple[1] # row
     distance_vector = np.zeros(len(reads))
 
-    # molt = MEAN_LENGTH *100
     molt = 1
     comparison = reads[epoch]
     out = []
@@ -259,7 +263,7 @@ def __split_align__(tuple:tuple):
 
 
 def links_formation(links:list, cpu=2)->list:
-
+    """Implement the parallelization of the links formation between the reads"""
     return Parallel(n_jobs=cpu)(delayed(__split_align__)(i)for i in [(links,j) for j in range(len(links))])
 
 ################

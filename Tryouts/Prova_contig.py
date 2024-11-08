@@ -11,6 +11,9 @@ from Bio import SeqIO
 import random
 from scipy.cluster.hierarchy import dendrogram
 from seaborn import violinplot
+import os
+import pickle
+
 
 print(f"[{datetime.datetime.now()}]")
 
@@ -267,21 +270,86 @@ def links_formation(links:list, cpu=2)->list:
 
     return Parallel(n_jobs=cpu)(delayed(__split_align__)(i)for i in [(links,j) for j in range(len(links))])
 
-import os
-
 #####
+
 """
 The following can be parallelized parsing rows of the matrix. However multiples links has the possibility to be formed.
 Good thing, since can be further linked and lowered the complexity. Therefore to not incurr in errors or bugs
 the presence of cross links between them has to be checked.
+
+
+Erase too much similar reads, to lower complexity, reads with above 90% similarity.
 """
+
 ####
 
-def select_high_score_overlap(edges:list, threshold= 0.70)->list:
+def retrive_link()-> tuple:
+    return None
+
+def select_high_score_partial(path:str, mean_len_reads:int, threshold = 0.7)->None:
+    """Ths function takes the tmp directory where a re stored the graph links,iterate for each file and performe
+    the concatenation of those links which are high in score. To avoid opening and closing of the tmp files candidated are saved and evaluated after
+    when the correct file is read. However since some links could be in already opened file, the function re performe the procedure twice."""
+
+    tmp_files = [file for file in os.listdir(path) if os.path.isfile(file)]
+
+    pairs = [[] for _ in range(len(tmp_files))]
+    tridents = []
+
+    for file in tmp_files:
+        with open(file, 'rb') as f:
+            data = pickle.load(f)
+        for link in data:
+            if link[2]/3 >= mean_len_reads * threshold:
+                pairs[link[1]].append(link)
+                continue
+                
+
+    cnt = 0
+    for file in tmp_files:
+        if len(pairs[cnt]) < 1:
+            continue
+        else:
+            with open(file, 'rb') as f:
+                data = pickle.load(f)
+            
+        cnt += 1
+
+    return None
+
+def select_high_score_overlap(edges:list, reads:list, quantile_08:int, threshold= 0.70, partial = False, match_score = 3, debug = False)->list:
     """This function search for two consecutive reads with most of them overlapping and a third,
-    which overlap with the fisrt with o relative low score.
+    which overlap with the fisrt with a relative low score and with the second with a high score.
     Tha aim is to link the fisrt and the third with a high score, in order to lower the complexity of the graph.
+
+    Variable `partial` is for a further futere implementaton if the rows of the matrix will be dealt ones per time
+    using a file at a time.
     """
+
+    new_bridges = []
+    cnt = 0
+    removed = 0
+
+    for i in edges:
+
+        for j in i:
+            if j[2]/match_score >= len(reads[j[0]])*threshold:
+
+                for y in edges[i[j][1]]:
+                    if y[2]/match_score >= len(reads[y[1]])*threshold:
+
+                        al = __np_align_func__(reads[j[0]], reads[y[0]])
+                        new_bridges.append((j[0], y[1], j[2] + y[2], al[2], 1/(j[2] + y[2])))
+
+                        # edges[cnt].remove(j)
+                        # edges[i[j][1]].remove(y)
+                        removed += 2
+
+        cnt += 1
+
+    if debug:
+        return None
+    
     return None
 
 
@@ -325,19 +393,20 @@ def edge_selection(edges:list, cpu=2)->list:
     select_edges = []
 
     for i in range(len(res)):
-        for j in res[i]:
-            select_edges.append(j)
+        # for j in res[i]:
+        #     select_edges.append(j)
         if i == 0 or i == 1:
             continue
         else:
             dist_matrix = np.vstack((dist_matrix, edges[i][1]))
 
-    return select_edges, dist_matrix
+    return res, dist_matrix
 
 
 seq = extracting_sequence_from_data("C:\\Users\\filoa\\Desktop\\Programming_trials\\Assembler\\Main\\Data\\GCA_014117465.1_ASM1411746v1_genomic.fna", limit=5000)
 
-reads = custom_reads(seq, res_path="", length_reads=150, gap=True, verbose=True, coverage=20, num_gap=2)
+reads = custom_reads(seq, res_path="", length_reads=150, gap=3, verbose=True, coverage=20, num_gap=2)
+
 
 reads = parallel_coding(reads)
 

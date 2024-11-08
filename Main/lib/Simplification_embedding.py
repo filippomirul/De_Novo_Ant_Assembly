@@ -49,6 +49,8 @@ def __list_selection_(row_edges:list, cut_off = 0.05)->list:
 def edge_selection(edges:list, cpu=2)->list:
     """Performe edge selection only on the weight between two nodes
     Input: [[(0, 3, 45, -33, 11), (23, 45, 79, -123, 0.23), ...], [(), (), ..], ... ]
+        and a vector with the pairwise distance between the nodes (custom distance)
+    Output has the same structure of the first element of the input
     """
 
     res = Parallel(n_jobs=cpu)(delayed(__list_selection_)(edges[i][0]) for i in range(len(edges)))

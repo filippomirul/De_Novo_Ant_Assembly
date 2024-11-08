@@ -90,7 +90,7 @@ def main():
 
     print(f"[{datetime.datetime.now()}]: Output directory : {out_dir}")
     print(f"[{datetime.datetime.now()}]: Number of cpus given : {args.cpu_cores}")
-    print(f"[{datetime.datetime.now()}]: Parameters passed to the Ant coony system algorithm")
+    print(f"[{datetime.datetime.now()}]: Parameters passed to the Ant colony system algorithm")
     print(f"[{datetime.datetime.now()}]: Number of ants generations: {args.max_generation}")
     print(f"[{datetime.datetime.now()}]: Number of ants at each generation: {args.population_size}")
     print(f"[{datetime.datetime.now()}]: Evaporation rate: {args.evaporation_rate}")
@@ -121,6 +121,8 @@ def main():
         if len(args.input) > 1:
 
             r = Parallel(n_jobs=args.cpu_cores)(delayed(extract_reads)(i) for i in args.input)
+            reads = r[0]
+            phred_score = r[1]
 
         else:
 

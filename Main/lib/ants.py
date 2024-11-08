@@ -49,8 +49,7 @@ def __get_score__(edges:list, from_node:int, to_node:int)-> float:
     """Function to retrive the score of the alignment between two nodes"""
     part = from_node/len(edges)
 
-
-    return score
+    return NotImplemented
 
 
 class Assembly_problem():
@@ -181,6 +180,10 @@ class Assembly_problem():
             fitness.append(score)
 
         return fitness
+    
+    """
+    Introduce the lenght of the path in the scoring, the shorter the better
+    """
     
     # def evaluator(self, candidates, args):
     #         """Return the fitness values for the given candidates."""
